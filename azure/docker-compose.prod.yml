@@ -11,8 +11,8 @@ services:
     environment:
       - DEBUG=False
       - SECRET_KEY=${DJANGO_SECRET_KEY:-super-secure-production-key-for-visioneye-app}
-      - ALLOWED_HOSTS=pvsairamsaketh.in,www.pvsairamsaketh.in,localhost,127.0.0.1,${AZURE_VM_IP:-127.0.0.1}
-      - CORS_ALLOWED_ORIGINS=https://pvsairamsaketh.in,https://www.pvsairamsaketh.in,http://localhost:5173
+      - ALLOWED_HOSTS=*
+      - CORS_ALLOW_ALL_ORIGINS=True
       - MODEL_PATH=/app/backend/models/yolo26n.onnx
       - CONFIDENCE_THRESHOLD=0.40
     volumes:
@@ -30,7 +30,7 @@ services:
       - visioneye-net
 
   # ----------------------------------------------------------------------------
-  # Nginx Reverse Proxy with SSL (Let's Encrypt), WebSockets & MJPEG streaming
+  # Nginx Reverse Proxy: Serves Download Website, Web App, WebSockets & Video
   # ----------------------------------------------------------------------------
   nginx:
     image: nginx:alpine
@@ -41,6 +41,8 @@ services:
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./website:/var/www/website:ro
+      - ./downloads:/var/www/downloads:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - visioneye_certbot_www:/var/www/certbot:ro
     depends_on:
