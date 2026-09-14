@@ -245,9 +245,9 @@
   <section class="section" id="install" style="background: rgba(13, 19, 33, 0.4); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
     <div class="container">
       <div class="section-header">
-        <span class="section-tag">Quick Start</span>
-        <h2 class="section-title">Installation Guide</h2>
-        <p class="section-desc">Follow these straightforward steps to install and launch VisionEye on your operating system.</p>
+        <span class="section-tag">Quick Start & Setup</span>
+        <h2 class="section-title">Step-by-Step Installation Guide</h2>
+        <p class="section-desc">Follow these simple steps to install and run VisionEye on your computer or test instantly in your browser.</p>
       </div>
 
       <div class="install-box">
@@ -255,6 +255,7 @@
           <button class="tab-btn active" data-tab="tab-macos">🍏 macOS</button>
           <button class="tab-btn" data-tab="tab-windows">🪟 Windows</button>
           <button class="tab-btn" data-tab="tab-linux">🐧 Linux</button>
+          <button class="tab-btn" data-tab="tab-web">📱 Instant Web / Mobile</button>
         </div>
 
         <!-- macOS Tab -->
@@ -263,22 +264,35 @@
             <li class="step-item">
               <div class="step-number">1</div>
               <div class="step-text">
-                <h4>Download the DMG installer</h4>
-                <p>Choose <strong>VisionEye-macOS-AppleSilicon.dmg</strong> (for M1/M2/M3/M4 Macs) or <strong>VisionEye-macOS-Intel.dmg</strong> (for older Intel Macs).</p>
+                <h4>Download the DMG installer for your Mac</h4>
+                <p>Choose <strong>VisionEye-macOS-AppleSilicon.dmg</strong> if you have an Apple Silicon Mac (M1, M2, M3, M4) or <strong>VisionEye-macOS-Intel.dmg</strong> for Intel-based Macs.</p>
               </div>
             </li>
             <li class="step-item">
               <div class="step-number">2</div>
               <div class="step-text">
-                <h4>Open DMG & Drag to Applications</h4>
-                <p>Double-click the downloaded <code>.dmg</code> file and drag the <strong>VisionEye.app</strong> icon into your <strong>Applications</strong> folder.</p>
+                <h4>Open DMG & Drag into Applications</h4>
+                <p>Double-click the downloaded <code>.dmg</code> file. In the window that opens, drag the <strong>VisionEye</strong> icon and drop it into your <strong>Applications</strong> folder.</p>
               </div>
             </li>
             <li class="step-item">
               <div class="step-number">3</div>
               <div class="step-text">
-                <h4>Launch & Grant Permissions</h4>
-                <p>Open VisionEye from Spotlight or Launchpad. On first launch, macOS Gatekeeper may prompt confirmation. Right-click the app and click <strong>Open</strong> if prompted, then allow Camera access when prompted.</p>
+                <h4>Launch the Application</h4>
+                <p>Open <strong>VisionEye</strong> from your Applications folder, Spotlight Search (<code>Cmd + Space</code>), or Launchpad.</p>
+                <div class="tip-card" style="margin-top: 0.75rem; background: rgba(0, 240, 255, 0.08); border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.84rem; line-height: 1.5;">
+                  💡 <strong>First Launch Tip (macOS Gatekeeper):</strong> If you see <em>"VisionEye cannot be opened because it is from an unidentified developer"</em>:
+                  <br>1. Open <strong>Finder</strong> ➔ Go to <strong>Applications</strong>.
+                  <br>2. <strong>Right-click (or Control-click)</strong> on <strong>VisionEye</strong> and select <strong>Open</strong>.
+                  <br>3. Click <strong>Open</strong> in the confirmation prompt. (You only need to do this once).
+                </div>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">4</div>
+              <div class="step-text">
+                <h4>Allow Camera Permission & Start Tracking</h4>
+                <p>When prompted, click <strong>Allow</strong> to grant camera access for your webcam, or upload any MP4 video file to start real-time foot-traffic counting immediately!</p>
               </div>
             </li>
           </ul>
@@ -290,22 +304,34 @@
             <li class="step-item">
               <div class="step-number">1</div>
               <div class="step-text">
-                <h4>Download Windows Installer</h4>
+                <h4>Download the Windows Installer</h4>
                 <p>Download <strong>VisionEye-Windows-x64.exe</strong> from the download section above.</p>
               </div>
             </li>
             <li class="step-item">
               <div class="step-number">2</div>
               <div class="step-text">
-                <h4>Run Setup</h4>
-                <p>Double-click <code>VisionEye-Windows-x64.exe</code>. If Windows SmartScreen displays "Windows protected your PC", click <strong>More info</strong> → <strong>Run anyway</strong>.</p>
+                <h4>Run the Installer (.exe)</h4>
+                <p>Double-click <code>VisionEye-Windows-x64.exe</code> to begin the setup wizard.</p>
+                <div class="tip-card" style="margin-top: 0.75rem; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.84rem; line-height: 1.5; color: #FCD34D;">
+                  💡 <strong>Windows SmartScreen Tip:</strong> If you see a blue window saying <em>"Windows protected your PC"</em>:
+                  <br>1. Click the text link: <strong>"More info"</strong>.
+                  <br>2. Click the button: <strong>"Run anyway"</strong>.
+                </div>
               </div>
             </li>
             <li class="step-item">
               <div class="step-number">3</div>
               <div class="step-text">
-                <h4>Complete Installation</h4>
-                <p>Follow the installer wizard to create a Desktop shortcut and launch VisionEye.</p>
+                <h4>Choose Installation Location & Shortcuts</h4>
+                <p>Choose whether to create a Desktop shortcut and Start Menu entry, then click <strong>Install</strong>. All dependencies and AI models are self-contained — no Python or Node.js required!</p>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">4</div>
+              <div class="step-text">
+                <h4>Launch & Start Analyzing</h4>
+                <p>Launch <strong>VisionEye</strong> from your Desktop or Start Menu. Connect your USB/integrated webcam or upload surveillance video clips to view real-time occupancy and IN/OUT counts.</p>
               </div>
             </li>
           </ul>
@@ -317,15 +343,15 @@
             <li class="step-item">
               <div class="step-number">1</div>
               <div class="step-text">
-                <h4>Download AppImage</h4>
-                <p>Download <strong>VisionEye-Linux-x64.AppImage</strong>.</p>
+                <h4>Download the Portable AppImage</h4>
+                <p>Download <strong>VisionEye-Linux-x64.AppImage</strong> (or the <code>.deb</code> package for Ubuntu/Debian).</p>
               </div>
             </li>
             <li class="step-item">
               <div class="step-number">2</div>
               <div class="step-text">
-                <h4>Make Executable</h4>
-                <p>Grant execution permissions via terminal or file properties:</p>
+                <h4>Make the File Executable</h4>
+                <p>Right-click the downloaded file ➔ <strong>Properties</strong> ➔ <strong>Permissions</strong> ➔ Check <em>"Allow executing file as program"</em>, OR run in your terminal:</p>
                 <div class="code-block">
                   <span>chmod +x VisionEye-Linux-x64.AppImage</span>
                 </div>
@@ -334,8 +360,36 @@
             <li class="step-item">
               <div class="step-number">3</div>
               <div class="step-text">
-                <h4>Execute Application</h4>
-                <p>Double-click or run from terminal: <code>./VisionEye-Linux-x64.AppImage</code></p>
+                <h4>Launch Application</h4>
+                <p>Double-click the AppImage or execute from your terminal:</p>
+                <div class="code-block">
+                  <span>./VisionEye-Linux-x64.AppImage</span>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Web & Mobile Tab -->
+        <div class="tab-content" id="tab-web">
+          <ul class="step-list">
+            <li class="step-item">
+              <div class="step-number">1</div>
+              <div class="step-text">
+                <h4>Zero Installation Required</h4>
+                <p>VisionEye runs universally inside any modern browser on <strong>Android, iPhone, iPad, Mac, Windows, or Linux</strong> powered by our cloud container.</p>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">2</div>
+              <div class="step-text">
+                <h4>Open the Live Web Application</h4>
+                <p>Click the button below to launch the live interactive dashboard right now:</p>
+                <div style="margin-top: 1rem;">
+                  <a href="/live" class="btn-download-primary" style="display: inline-flex; width: auto; padding: 0.75rem 1.75rem; font-size: 0.95rem;">
+                    <span>⚡ Launch Live Web App</span>
+                  </a>
+                </div>
               </div>
             </li>
           </ul>
