@@ -39,7 +39,8 @@ jobs:
 
       - name: Run Backend Pytest Suite
         run: |
-          PYTHONPATH=backend python -m pytest backend/tests/ -v
+          cd backend
+          python -m pytest tests/ -v --tb=short
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4

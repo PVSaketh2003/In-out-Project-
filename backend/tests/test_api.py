@@ -2,10 +2,13 @@
 Integration tests for Django REST API endpoints.
 """
 import os
-import pytest
-from django.test import Client
+import django
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+django.setup()
+
+import pytest
+from django.test import Client
 
 
 @pytest.fixture
