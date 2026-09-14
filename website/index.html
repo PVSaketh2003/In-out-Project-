@@ -43,6 +43,7 @@
       <ul class="nav-links">
         <li><a href="#downloads">Downloads</a></li>
         <li><a href="#features">Features</a></li>
+        <li><a href="#architecture">Architecture</a></li>
         <li><a href="#install">Installation</a></li>
         <li><a href="#specs">System Specs</a></li>
         <li><a href="#changelog">Changelog</a></li>
@@ -61,24 +62,23 @@
       </div>
 
       <h1 class="hero-title">
-        Real-Time Foot-Traffic Analytics<br>
-        <span class="hero-gradient">Powered by Edge Computer Vision</span>
+        Real-Time Edge Computer Vision &<br>
+        <span>Spatial Foot-Traffic Analytics</span>
       </h1>
 
       <p class="hero-subtitle">
-        VisionEye is an offline-first, production-ready computer vision desktop platform for multi-person tracking, directional IN/OUT pedestrian counting, 4-point homography 2D ground mapping, and privacy masking.
+        VisionEye delivers sub-12ms multi-person detection, ByteTrack spatial tracking, 
+        interactive 4-point homography 2D minimaps, and automated IN/OUT counting on macOS, Windows, Linux, and Cloud Web.
       </p>
 
-      <!-- Primary Auto-Detected Download CTA Box -->
-      <div class="download-cta-box" id="downloads">
-        <div class="detected-header">Detected Platform:</div>
-        <div class="detected-platform-title" id="detectedPlatformTitle">
-          💻 Detecting your operating system...
-        </div>
-
+      <!-- Primary OS Download CTA -->
+      <div class="hero-cta" id="downloads">
         <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="primaryDownloadBtn" class="btn-download-primary">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          <span>Download VisionEye Desktop</span>
+          <span class="btn-icon" id="primaryOsIcon">🍏</span>
+          <div class="btn-text">
+            <span class="btn-label" id="primaryDownloadLabel">Download for macOS</span>
+            <span class="btn-subtext" id="primaryDownloadSub">v1.0.0 • Apple Silicon (.dmg)</span>
+          </div>
         </a>
 
         <div class="download-meta">
@@ -93,7 +93,7 @@
       <!-- Application Preview -->
       <div class="hero-preview">
         <div class="hero-preview-inner">
-          <img src="https://raw.githubusercontent.com/PVSaketh2003/In-out-Project-/main/architecture.png" alt="VisionEye Dashboard Architecture Preview" onerror="this.src='https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80'">
+          <img src="https://raw.githubusercontent.com/PVSaketh2003/In-out-Project-/main/architecture.png" alt="VisionEye Architecture & System Design" onerror="this.src='architecture.png'">
         </div>
       </div>
     </div>
@@ -114,11 +114,11 @@
           <div>
             <div class="platform-icon">🍏</div>
             <h3 class="platform-name">macOS (Apple Silicon)</h3>
-            <div class="platform-arch">ARM64 • M1 / M2 / M3 / M4</div>
+            <p class="platform-meta">M1 / M2 / M3 / M4 • macOS 12 Monterey or newer</p>
             <ul class="platform-specs">
-              <li>✓ CoreML Neural Engine Acceleration</li>
-              <li>✓ Sub-10ms YOLO26n Inference</li>
-              <li>✓ macOS 12 Monterey or newer</li>
+              <li>✓ Hardware CoreML Neural Acceleration</li>
+              <li>✓ Ultra-low 9ms inference latency</li>
+              <li>✓ Native .dmg installer & auto-launch</li>
             </ul>
           </div>
           <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="btnMacArm" class="btn-platform-download">
@@ -129,43 +129,43 @@
         <!-- macOS Intel -->
         <div class="platform-card">
           <div>
-            <div class="platform-icon">🍎</div>
-            <h3 class="platform-name">macOS (Intel x86_64)</h3>
-            <div class="platform-arch">Intel x64 Core i5/i7/i9/Xeon</div>
+            <div class="platform-icon">🍏</div>
+            <h3 class="platform-name">macOS (Intel x64)</h3>
+            <p class="platform-meta">Intel Core i5/i7/i9 • macOS 11 Big Sur or newer</p>
             <ul class="platform-specs">
-              <li>✓ Multi-threaded CPU Provider</li>
-              <li>✓ Native DMG Installer package</li>
-              <li>✓ macOS 11 Big Sur or newer</li>
+              <li>✓ Multi-threaded CPU ONNX Runtime</li>
+              <li>✓ Integrated FaceTime HD camera support</li>
+              <li>✓ Native .dmg installer</li>
             </ul>
           </div>
           <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="btnMacIntel" class="btn-platform-download">
-            Download DMG (x86_64)
+            Download DMG (Intel x64)
           </a>
         </div>
 
-        <!-- Windows -->
+        <!-- Windows x64 -->
         <div class="platform-card">
           <div>
             <div class="platform-icon">🪟</div>
             <h3 class="platform-name">Windows (64-bit)</h3>
-            <div class="platform-arch">Windows 10 / 11 (x64)</div>
+            <p class="platform-meta">Windows 10 / 11 (64-bit)</p>
             <ul class="platform-specs">
-              <li>✓ Self-contained NSIS Installer (.exe)</li>
-              <li>✓ DirectML & CPU Acceleration</li>
-              <li>✓ Windows 10/11 64-bit</li>
+              <li>✓ DirectShow & USB Camera drivers</li>
+              <li>✓ One-click NSIS setup wizard</li>
+              <li>✓ High-DPI display optimized HUD</li>
             </ul>
           </div>
           <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="btnWin" class="btn-platform-download">
-            Download .exe (x64)
+            Download Setup (.exe)
           </a>
         </div>
 
-        <!-- Linux -->
+        <!-- Linux x64 -->
         <div class="platform-card">
           <div>
             <div class="platform-icon">🐧</div>
             <h3 class="platform-name">Linux (x86_64)</h3>
-            <div class="platform-arch">Ubuntu, Debian, Fedora, Arch</div>
+            <p class="platform-meta">Ubuntu, Debian, Fedora, Arch, etc.</p>
             <ul class="platform-specs">
               <li>✓ Portable AppImage package</li>
               <li>✓ Standard glibc 2.31+ compatibility</li>
@@ -175,6 +175,57 @@
           <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="btnLinux" class="btn-platform-download">
             Download AppImage (x64)
           </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Detailed System Architecture Section -->
+  <section class="section" id="architecture" style="background: rgba(11, 15, 25, 0.7); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">System Design</span>
+        <h2 class="section-title">End-to-End Modular Architecture</h2>
+        <p class="section-desc">How VisionEye transforms high-definition video into real-time spatial intelligence across 5 interconnected architectural tiers.</p>
+      </div>
+
+      <!-- Architecture Diagram Graphic -->
+      <div class="hero-preview" style="margin-bottom: 3.5rem;">
+        <div class="hero-preview-inner" style="border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5), var(--shadow-glow-cyan);">
+          <img src="architecture.png" alt="VisionEye System Architecture Flowchart" style="width: 100%; height: auto; display: block; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PVSaketh2003/In-out-Project-/main/architecture.png'">
+        </div>
+      </div>
+
+      <!-- Architecture 5-Tier Breakdown Grid -->
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon icon-cyan" style="font-weight: 800; font-family: var(--font-mono); font-size: 0.85rem;">T1</div>
+          <h3 class="feature-title">1. Ingestion & Input Streams</h3>
+          <p class="feature-desc">Ingests 30–60 FPS video streams from USB/FaceTime HD webcams, industrial RTSP surveillance streams, and looping local MP4/MOV files with automated reconnection and zero memory fragmentation.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-emerald" style="font-weight: 800; font-family: var(--font-mono); font-size: 0.85rem;">T2</div>
+          <h3 class="feature-title">2. Edge CV & Neural Pipeline</h3>
+          <p class="feature-desc">Applies 640×640 letterbox scaling, ultra-fast YOLO26n ONNX neural inference (9–12ms), ByteTrack Kalman state tracking, virtual counting line vector debouncing, 4-point homography 2D ground projection, and privacy blurring.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-purple" style="font-weight: 800; font-family: var(--font-mono); font-size: 0.85rem;">T3</div>
+          <h3 class="feature-title">3. Daphne ASGI & Telemetry Server</h3>
+          <p class="feature-desc">Django 5 Channels backend powered by Daphne ASGI. Broadcasts low-latency telemetry updates via WebSockets (<code>/ws/analytics/</code>), serves high-speed MJPEG video feeds (<code>/api/video/feed</code>), and exposes REST endpoints.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-amber" style="font-weight: 800; font-family: var(--font-mono); font-size: 0.85rem;">T4</div>
+          <h3 class="feature-title">4. Universal Client Layer</h3>
+          <p class="feature-desc">Cross-platform Electron 30 desktop builds for macOS (Apple Silicon & Intel), Windows, and Linux alongside a responsive React 18 / Vite SPA for instant browser access on smartphones, tablets, and PCs.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-cyan" style="font-weight: 800; font-family: var(--font-mono); font-size: 0.85rem;">T5</div>
+          <h3 class="feature-title">5. CI/CD & Cloud Infrastructure</h3>
+          <p class="feature-desc">Automated GitHub Actions CI gatekeeper (13/13 Pytest test suite), multi-platform Docker container deployment to production VM via Nginx reverse proxy with TLS/SSL, and automatic binary releases.</p>
         </div>
       </div>
     </div>
@@ -486,7 +537,7 @@
         <a href="#features">Features</a>
         <a href="#install">Installation</a>
         <a href="https://github.com/PVSaketh2003/In-out-Project-" target="_blank" rel="noopener">GitHub Repository</a>
-        <a href="mailto:pvsairamsaketh@gmail.com">Contact Support</a>
+        <a href="https://github.com/PVSaketh2003/In-out-Project-/issues" target="_blank" rel="noopener">Support & Issues</a>
       </div>
     </div>
   </footer>

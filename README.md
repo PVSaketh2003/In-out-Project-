@@ -4,7 +4,7 @@
 > Powered by **YOLO26n ONNX**, **ByteTrack Multi-Object Tracking**, **4-Point Ground Homography**, **Django Channels WebSockets**, **React 18 + Vite**, **Universal Docker Container**, and **Multi-OS Desktop Packaging**.
 > 
 > Official Web & Download Portal: **[https://pvsairamsaketh.in](https://pvsairamsaketh.in)**  
-> Cloud Deployment: **Microsoft Azure** (`pvsaketh1@gmail.com`)
+> Cloud Deployment: **Microsoft Azure** (Cloud Production Instance)
 
 ---
 
@@ -28,7 +28,22 @@ VisionEye is an end-to-end, privacy-compliant, edge-accelerated computer vision 
 
 ---
 
-## 2. CI/CD & Deployment Architecture
+## 2. System Architecture & Pipeline Flow
+
+<p align="center">
+  <img src="architecture.png" alt="VisionEye System Architecture Flowchart" width="100%">
+</p>
+
+### End-to-End Architectural Tiers:
+1. **Tier 1: Ingestion & Input Streams**: 30–60 FPS video ingestion from USB/FaceTime HD webcams, industrial RTSP surveillance streams, and looping local MP4/MOV video files with seamless auto-recovery.
+2. **Tier 2: Edge CV & Neural Pipeline**: 640×640 letterbox resizing ➔ YOLO26n ONNX neural inference (9–12ms with Apple Silicon CoreML / multi-threaded CPU fallback) ➔ ByteTrack Kalman Filter tracking ➔ Configurable IN/OUT counting line ➔ 4-Point ground homography perspective projection & Privacy blur.
+3. **Tier 3: Asynchronous Backend**: Django 5 Channels + Daphne ASGI server broadcasting sub-millisecond telemetry over WebSockets (`/ws/analytics/`), streaming high-speed MJPEG video (`/api/video/feed`), and exposing REST APIs.
+4. **Tier 4: Universal Client Layer**: Native desktop packages for macOS (Apple Silicon & Intel), Windows x64, and Linux x64 alongside a responsive React 18 / Vite Cyber-HUD web application.
+5. **Tier 5: CI/CD & Cloud Infrastructure**: Automated GitHub Actions CI quality gate (13/13 Pytest test suite), multi-platform Docker container registry, and cloud production VM deployment behind Nginx TLS reverse proxy.
+
+---
+
+## 3. CI/CD & Deployment Pipeline
 
 ```text
                                 Developer
@@ -55,20 +70,20 @@ VisionEye is an end-to-end, privacy-compliant, edge-accelerated computer vision 
      [.github/workflows/deploy-azure.yml]
         • Build & Push to Docker Hub
           (pvsairamsaketh/visioneye:latest)
-        • SSH to Azure VM (pvsaketh1@gmail.com)
+        • SSH to Azure Cloud VM
         • Rolling Container Restart & SSL
         • Live Healthcheck Verification
 ```
 
 ---
 
-## 3. Technology Stack
+## 4. Technology Stack
 
 | Layer | Technologies | Description |
 | :--- | :--- | :--- |
 | **Desktop Wrapper** | Electron 30, Electron Builder | Cross-platform desktop application packaging |
 | **Container Engine**| Docker Multi-Stage, Docker Compose | Universal cross-platform container (Node 20 + Python 3.11 slim) |
-| **Cloud Hosting**   | Microsoft Azure VM (Ubuntu Linux) | Cloud hosting configured for `pvsaketh1@gmail.com` |
+| **Cloud Hosting**   | Microsoft Azure VM (Ubuntu Linux) | Cloud hosting configured for high availability |
 | **Reverse Proxy**   | Nginx 1.25, Let's Encrypt Certbot | SSL/TLS termination, HTTP/2, WebSockets, and MJPEG streaming |
 | **Frontend UI**     | React 18, Vite 5, Lucide Icons | Futuristic cyber-HUD dark theme with Vanilla CSS & Canvas |
 | **Backend API**     | Django 5, Channels 4, Daphne ASGI | Asynchronous ASGI server for REST & low-latency WebSockets |
@@ -78,7 +93,7 @@ VisionEye is an end-to-end, privacy-compliant, edge-accelerated computer vision 
 
 ---
 
-## 4. Local Development Quickstart
+## 5. Local Development Quickstart
 
 ### Prerequisites
 - Python 3.11+
@@ -103,7 +118,7 @@ Access `http://127.0.0.1:8000` in any browser.
 
 ---
 
-## 5. Running the Test Suite
+## 6. Running the Test Suite
 
 ```bash
 PYTHONPATH=backend ./backend/venv/bin/pytest backend/tests/ -v
@@ -118,16 +133,16 @@ All 13 unit and integration tests run in under 15 seconds, testing:
 
 ---
 
-## 6. Deployment Guides
+## 7. Deployment Guides
 
-- **[Azure Cloud Deployment Guide](docs/AZURE_DEPLOYMENT.md)**: Full instructions for provisioning Azure VM (`pvsaketh1@gmail.com`), setting up Docker Hub, configuring Nginx reverse proxy, and enabling GitHub Actions CD.
+- **[Azure Cloud Deployment Guide](docs/AZURE_DEPLOYMENT.md)**: Full instructions for provisioning Azure VM, setting up Docker Hub, configuring Nginx reverse proxy, and enabling GitHub Actions CD.
 - **[GoDaddy DNS Configuration](docs/DOMAIN_SETUP.md)**: Exact A-records and CNAME setup to point `pvsairamsaketh.in` and `www.pvsairamsaketh.in` to the website or Azure instance.
 - **[Release Playbook](docs/RELEASE.md)**: How to create a release tag (`git tag v1.0.0`), monitor GitHub Actions, and verify SHA-256 checksums.
 - **[Installation Guide](docs/INSTALLATION.md)**: End-user setup instructions for macOS, Windows, Linux, and Mobile Web.
 
 ---
 
-## 7. License & Credits
+## 8. License & Credits
 
-Copyright © 2026 **P V Sairam Saketh** (`pvsairamsaketh@gmail.com` / `pvsaketh1@gmail.com`).  
+Copyright © 2026 **P V Sairam Saketh**.  
 Licensed under the [MIT License](LICENSE).

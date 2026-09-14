@@ -2,7 +2,6 @@
 # ==============================================================================
 # VisionEye Azure VM Provisioning & Initialization Script
 # Target: Azure Ubuntu 22.04 / 24.04 LTS VM
-# Admin Account: pvsaketh1@gmail.com
 # Domain: pvsairamsaketh.in / www.pvsairamsaketh.in
 # ==============================================================================
 
@@ -24,7 +23,7 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 DOMAIN="pvsairamsaketh.in"
-EMAIL="pvsaketh1@gmail.com"
+EMAIL="admin@pvsairamsaketh.in"
 
 # 1. Update OS packages
 echo -e "${CYAN}[1/6] Updating system packages...${NC}"
@@ -82,6 +81,5 @@ echo -e "              AZURE VM INITIALIZATION COMPLETE!                        
 echo -e "════════════════════════════════════════════════════════════════════════════${NC}"
 echo -e "  ${BOLD}App Directory:${NC}  /opt/visioneye"
 echo -e "  ${BOLD}Docker Status:${NC}  Active & Running"
-echo -e "  ${BOLD}Azure Owner:${NC}    ${EMAIL}"
 echo -e "  ${BOLD}Target Domain:${NC}  https://${DOMAIN}"
 echo -e "════════════════════════════════════════════════════════════════════════════\n"

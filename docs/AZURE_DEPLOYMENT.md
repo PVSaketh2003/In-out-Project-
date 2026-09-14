@@ -1,6 +1,6 @@
 # VisionEye Azure Cloud Deployment Guide
 
-This guide provides the complete, production-ready procedure to deploy VisionEye as a universal Dockerized service on **Microsoft Azure** using account **`pvsaketh1@gmail.com`** and connected to **`https://pvsairamsaketh.in`**.
+This guide provides the complete, production-ready procedure to deploy VisionEye as a universal Dockerized service on **Microsoft Azure** connected to **`https://pvsairamsaketh.in`**.
 
 ---
 
@@ -20,7 +20,7 @@ This guide provides the complete, production-ready procedure to deploy VisionEye
                pvsairamsaketh/visioneye:latest
                              │
                              ▼
-             Azure Cloud Instance (pvsaketh1@gmail.com)
+             Azure Cloud Instance
             ┌─────────────────────────────────────────┐
             │  Azure Ubuntu Linux VM (B2s / D2s_v5)   │
             │                                         │
@@ -47,7 +47,7 @@ This guide provides the complete, production-ready procedure to deploy VisionEye
 
 ## Step 1: Create Azure Virtual Machine
 
-1. Log in to the [Azure Portal](https://portal.azure.com) using **`pvsaketh1@gmail.com`**.
+1. Log in to the [Azure Portal](https://portal.azure.com).
 2. Navigate to **Virtual Machines** -> **Create** -> **Azure virtual machine**.
 3. Configure the VM settings:
    - **Subscription**: Your Azure subscription.

@@ -7,7 +7,7 @@ This guide explains how to configure DNS records in your **GoDaddy** account for
 ## 1. Domain Details
 
 - **Domain**: `pvsairamsaketh.in`
-- **GoDaddy Account Email**: `pvsairamsaketh@gmail.com`
+- **Account Management**: GoDaddy Domain Control Center
 - **Primary Website**: `https://pvsairamsaketh.in`
 - **Secondary Subdomain**: `https://www.pvsairamsaketh.in` (Redirects to primary apex domain)
 - **Hosting Target**: GitHub Pages (Download & Showcase Website) & Azure VM (Live API / Web App Instance)
@@ -20,7 +20,7 @@ To point `pvsairamsaketh.in` to the download portal hosted via GitHub Pages:
 
 ### Step 1: Log in to GoDaddy
 1. Go to [GoDaddy Domain Portfolio](https://dcc.godaddy.com/control/portfolio).
-2. Sign in with **`pvsairamsaketh@gmail.com`**.
+2. Sign in with your GoDaddy credentials.
 3. Select your domain: **`pvsairamsaketh.in`**.
 4. Click on **DNS** or **Manage DNS**.
 

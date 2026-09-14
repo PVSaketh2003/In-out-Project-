@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "VisionEye Foot-Traffic Analytics & Computer Vision Desktop Application",
   "main": "main.js",
-  "author": "P V Sairam Saketh <pvsairamsaketh@gmail.com>",
+  "author": "P V Sairam Saketh",
   "homepage": "https://pvsairamsaketh.in",
   "license": "MIT",
   "scripts": {
