@@ -15,8 +15,17 @@ class VisionEyeWebSocket {
   _getWebSocketUrl() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname || '127.0.0.1';
-    const port = '8000'; // Direct backend ASGI port for low latency
-    return `${protocol}//${host}:${port}/ws/analytics/`;
+    
+    // In local Vite dev mode (port 5173), direct connect to backend port 8000
+    if (window.location.port === '5173') {
+      return `${protocol}//${host}:8000/ws/analytics/`;
+    }
+    
+    // In production (port 80 or 443 through Nginx / Docker), use standard host with no custom port
+    const portStr = window.location.port && window.location.port !== '80' && window.location.port !== '443' 
+      ? `:${window.location.port}` 
+      : '';
+    return `${protocol}//${host}${portStr}/ws/analytics/`;
   }
 
   connect() {

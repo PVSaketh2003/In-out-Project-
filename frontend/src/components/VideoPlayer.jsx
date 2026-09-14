@@ -345,9 +345,11 @@ export default function VideoPlayer({ telemetry, calibrationMode, onSetCalibrati
   const [streamErrorCount, setStreamErrorCount] = useState(0);
 
   const getStreamSrc = () => {
-    if (streamErrorCount >= 2) {
+    // In local Vite dev mode, connect to backend port 8000
+    if (window.location.port === '5173') {
       return `${window.location.protocol}//${window.location.hostname}:8000/api/video/feed?t=${Date.now()}`;
     }
+    // In production, use standard relative URL via Nginx reverse proxy
     return `/api/video/feed?t=${Date.now()}`;
   };
 

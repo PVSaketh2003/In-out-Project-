@@ -275,7 +275,8 @@ class ResetTrackingView(APIView):
 
 
 import asyncio
-from django.http import StreamingHttpResponse, HttpResponse, JsonResponse
+from django.http import StreamingHttpResponse, HttpResponse, JsonResponse, FileResponse
+
 
 
 async def video_feed_stream(request):
@@ -319,3 +320,71 @@ def video_single_frame(request):
     response = HttpResponse(frame_bytes, content_type="image/jpeg")
     response["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
+
+
+import mimetypes
+from pathlib import Path
+
+# Register custom MIME types
+mimetypes.add_type("application/manifest+json", ".webmanifest")
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+
+
+def serve_react_app(request, path=""):
+    """
+    Universal SPA router: Serves React frontend dist files (index.html, assets, manifest, icons).
+    Works in both local development and Docker / Azure VM environments.
+    """
+    possible_dist_dirs = [
+        settings.BASE_DIR.parent / "frontend" / "dist",
+        settings.BASE_DIR / "frontend" / "dist",
+        Path("/app/frontend/dist"),
+        Path("/var/www/frontend/dist"),
+    ]
+
+    dist_dir = None
+    for d in possible_dist_dirs:
+        if d.exists() and (d / "index.html").exists():
+            dist_dir = d
+            break
+
+    if not dist_dir:
+        return HttpResponse(
+            """<!DOCTYPE html>
+            <html>
+            <head><title>VisionEye — Live Dashboard</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+            <body style="background:#060913;color:#00F0FF;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;">
+            <div style="text-align:center;padding:2rem;border:1px solid rgba(0,240,255,0.3);border-radius:12px;background:rgba(13,19,33,0.8);">
+                <h1 style="margin:0 0 1rem 0;">⚡ VISIONEYE LIVE CLIENT</h1>
+                <p style="color:#94a3b8;">Frontend assets are compiling. Please build the frontend SPA:</p>
+                <code style="background:#0b0f19;padding:0.5rem 1rem;border-radius:6px;color:#10b981;display:inline-block;">cd frontend && npm run build</code>
+                <div style="margin-top:1.5rem;"><a href="/api/health" style="color:#00F0FF;">Check Backend Health API &rarr;</a></div>
+            </div>
+            </body>
+            </html>""",
+            content_type="text/html",
+        )
+
+    # Clean requested path
+    clean_path = path.lstrip("/") if path else ""
+
+    # If a specific static file is requested (assets, favicon, manifest, etc.)
+    if clean_path:
+        target_file = dist_dir / clean_path
+        if target_file.exists() and target_file.is_file():
+            content_type, _ = mimetypes.guess_type(str(target_file))
+            content_type = content_type or "application/octet-stream"
+            response = FileResponse(open(target_file, "rb"), content_type=content_type)
+            if clean_path.startswith("assets/"):
+                response["Cache-Control"] = "public, max-age=31536000, immutable"
+            else:
+                response["Cache-Control"] = "public, max-age=3600"
+            return response
+
+    # Fallback to index.html for React SPA client-side routing
+    index_file = dist_dir / "index.html"
+    response = FileResponse(open(index_file, "rb"), content_type="text/html; charset=utf-8")
+    response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+

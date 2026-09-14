@@ -1,7 +1,44 @@
-import React from 'react';
-import { Eye, Cpu, Radio, Activity, Info, Sliders, Maximize, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, Cpu, Radio, Activity, Info, Sliders, Maximize, Download, Smartphone } from 'lucide-react';
 
 export default function Header({ telemetry, wsStatus, onOpenSystemInfo, onOpenCalibrationGuide, onToggleFullscreen }) {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    // Check if running as standalone PWA
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+      setIsInstalled(true);
+    }
+
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+      }
+      setDeferredPrompt(null);
+    } else {
+      // iOS / manual guide alert
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        alert("📲 To install VisionEye on iOS:\n\n1. Tap the Share button (⎋ with arrow) at the bottom of Safari.\n2. Scroll down and tap 'Add to Home Screen'.\n3. Tap 'Add' to launch full-screen!");
+      } else {
+        alert("📲 To install VisionEye:\n\nTap your browser's menu (⋮) and select 'Add to Home screen' or 'Install app'.");
+      }
+    }
+  };
+
   const isAppleSilicon = telemetry?.providers?.some(p => p.includes('CoreML')) || true;
   const fps = telemetry?.fps || 0;
   const resolution = telemetry?.resolution || '640x480';
@@ -47,6 +84,19 @@ export default function Header({ telemetry, wsStatus, onOpenSystemInfo, onOpenCa
           <Activity size={14} />
           <span>{fps} FPS</span>
         </div>
+
+        {/* Install PWA Button (Visible if not in standalone mode) */}
+        {!isInstalled && (
+          <button
+            onClick={handleInstallClick}
+            className="btn btn-primary"
+            style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(16, 185, 129, 0.25))', border: '1px solid #00F0FF' }}
+            title="Install VisionEye App to Home Screen"
+          >
+            <Smartphone size={14} />
+            <span>Install App</span>
+          </button>
+        )}
 
         {/* Actions */}
         <button

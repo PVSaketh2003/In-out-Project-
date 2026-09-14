@@ -81,13 +81,10 @@ class YOLO26nDetector:
             logger.info(f"[YOLO26nDetector] Available ONNX providers: {available_providers}")
 
             preferred_providers = []
-            # On Apple Silicon (arm64), check for CoreML provider
-            is_apple_silicon = platform.system() == "Darwin" and platform.machine() in ["arm64", "aarch64"]
-            if is_apple_silicon and "CoreMLExecutionProvider" in available_providers:
-                preferred_providers.append("CoreMLExecutionProvider")
-
             if "CPUExecutionProvider" in available_providers:
                 preferred_providers.append("CPUExecutionProvider")
+            if "CoreMLExecutionProvider" in available_providers:
+                preferred_providers.append("CoreMLExecutionProvider")
 
             session_options = ort.SessionOptions()
             session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL

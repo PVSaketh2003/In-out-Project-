@@ -276,8 +276,29 @@ function setupTabs() {
   }
 }
 
+// PWA Install Prompt State
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const ctaBtn = document.getElementById('primaryDownloadBtn');
+  const userPlatform = detectPlatform();
+  if (userPlatform.isMobile && ctaBtn) {
+    ctaBtn.textContent = '📲 Install VisionEye App';
+    ctaBtn.onclick = (evt) => {
+      if (deferredInstallPrompt) {
+        evt.preventDefault();
+        deferredInstallPrompt.prompt();
+        deferredInstallPrompt = null;
+      }
+    };
+  }
+});
+
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   fetchLatestRelease();
 });
+

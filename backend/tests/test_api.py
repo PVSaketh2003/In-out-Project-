@@ -61,3 +61,19 @@ def test_api_counting_line_endpoint(client):
     data = post_resp.json()["counting_line"]
     assert data["start"] == [0.15, 0.45]
     assert data["end"] == [0.85, 0.45]
+
+
+@pytest.mark.django_db
+def test_spa_routes(client):
+    """Verifies that /, /live, and /app serve the React frontend without 404."""
+    for path in ["/", "/live", "/live/", "/app", "/app/"]:
+        resp = client.get(path)
+        assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_pwa_manifest(client):
+    """Verifies that manifest.webmanifest is served with proper content type."""
+    resp = client.get("/manifest.webmanifest")
+    assert resp.status_code == 200
+

@@ -60,26 +60,34 @@ sudo mkdir -p /opt/visioneye
 sudo chown -R $USER:$USER /opt/visioneye
 cd /opt/visioneye
 
-# 5. Acquire Let's Encrypt SSL Certificate
+# 5. Acquire Let's Encrypt SSL Certificate & Setup Fallback
 echo -e "${CYAN}[5/6] Setting up SSL Certificate for ${DOMAIN}...${NC}"
-if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
-    echo "  Running Certbot standalone to issue certificates for ${DOMAIN} & www.${DOMAIN}..."
+sudo mkdir -p /etc/letsencrypt/live/${DOMAIN}
+
+if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] || [ ! -f "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ]; then
+    echo "  Attempting Certbot standalone certificate issuance for ${DOMAIN} & www.${DOMAIN}..."
     sudo certbot certonly --standalone -d ${DOMAIN} -d www.${DOMAIN} --non-interactive --agree-tos --email ${EMAIL} || {
-        echo -e "${YELLOW}Notice: DNS for ${DOMAIN} might not be pointing to this VM yet. Creating self-signed fallback certs...${NC}"
-        sudo mkdir -p /etc/letsencrypt/live/${DOMAIN}
+        echo -e "${YELLOW}Notice: DNS propagation may be pending. Generating instant fallback SSL certificate...${NC}"
         sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
           -keyout /etc/letsencrypt/live/${DOMAIN}/privkey.pem \
           -out /etc/letsencrypt/live/${DOMAIN}/fullchain.pem \
           -subj "/CN=${DOMAIN}"
     }
 fi
-echo -e "  ${GREEN}✓${NC} SSL certificates verified."
+echo -e "  ${GREEN}✓${NC} SSL certificates verified at /etc/letsencrypt/live/${DOMAIN}/."
+
+# Ensure Docker starts on boot
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Add automated daily SSL renewal cron
+(crontab -l 2>/dev/null | grep -v "certbot renew" ; echo "0 3 * * * certbot renew --webroot -w /var/www/certbot --quiet && docker exec visioneye-nginx nginx -s reload 2>/dev/null || true") | sudo crontab -
 
 # 6. Summary & Next Steps
 echo -e "\n${GREEN}${BOLD}════════════════════════════════════════════════════════════════════════════"
 echo -e "              AZURE VM INITIALIZATION COMPLETE!                              "
 echo -e "════════════════════════════════════════════════════════════════════════════${NC}"
 echo -e "  ${BOLD}App Directory:${NC}  /opt/visioneye"
-echo -e "  ${BOLD}Docker Status:${NC}  Active & Running"
+echo -e "  ${BOLD}Docker Status:${NC}  Active & Running (24/7 Auto-Restart Enabled)"
 echo -e "  ${BOLD}Target Domain:${NC}  https://${DOMAIN}"
 echo -e "════════════════════════════════════════════════════════════════════════════\n"

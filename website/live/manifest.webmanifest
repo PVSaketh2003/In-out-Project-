@@ -1,0 +1,26 @@
+{
+  "name": "VisionEye — Foot-Traffic Analytics",
+  "short_name": "VisionEye",
+  "description": "Real-time edge computer vision and spatial foot-traffic analytics platform.",
+  "start_url": "/live",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060913",
+  "theme_color": "#00F0FF",
+  "categories": ["utilities", "productivity", "business"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192' fill='%23060913'><rect width='192' height='192' rx='36' fill='%23060913'/><circle cx='96' cy='96' r='40' stroke='%2300F0FF' stroke-width='12' fill='none'/><circle cx='96' cy='96' r='16' fill='%2300F0FF'/><path d='M24 96s28-48 72-48 72 48 72 48-28 48-72 48-72-48-72-48Z' stroke='%2300F0FF' stroke-width='10' fill='none'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%23060913'><rect width='512' height='512' rx='96' fill='%23060913'/><circle cx='256' cy='256' r='100' stroke='%2300F0FF' stroke-width='28' fill='none'/><circle cx='256' cy='256' r='40' fill='%2300F0FF'/><path d='M64 256s72-120 192-120 192 120 192 120-72 120-192 120-192-120-192-120Z' stroke='%2300F0FF' stroke-width='24' fill='none'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
