@@ -1,0 +1,63 @@
+"""
+Integration tests for Django REST API endpoints.
+"""
+import os
+import pytest
+from django.test import Client
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+
+@pytest.fixture
+def client():
+    return Client()
+
+
+@pytest.mark.django_db
+def test_api_health_endpoint(client):
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert "platform" in data
+    assert "model" in data
+
+
+@pytest.mark.django_db
+def test_api_cameras_endpoint(client):
+    response = client.get("/api/cameras")
+    assert response.status_code == 200
+    data = response.json()
+    assert "cameras" in data
+
+
+@pytest.mark.django_db
+def test_api_config_endpoint(client):
+    response = client.get("/api/config")
+    assert response.status_code == 200
+    data = response.json()
+    assert "confidence_threshold" in data
+
+    # Update config
+    post_resp = client.post(
+        "/api/config",
+        {"confidence_threshold": 0.55, "privacy": {"enabled": True, "mode": "pixelate"}},
+        content_type="application/json",
+    )
+    assert post_resp.status_code == 200
+    updated = post_resp.json()["config"]
+    assert updated["confidence_threshold"] == 0.55
+    assert updated["privacy"]["mode"] == "pixelate"
+
+
+@pytest.mark.django_db
+def test_api_counting_line_endpoint(client):
+    post_resp = client.post(
+        "/api/counting-line",
+        {"start": [0.15, 0.45], "end": [0.85, 0.45]},
+        content_type="application/json",
+    )
+    assert post_resp.status_code == 200
+    data = post_resp.json()["counting_line"]
+    assert data["start"] == [0.15, 0.45]
+    assert data["end"] == [0.85, 0.45]

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  visioneye-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: visioneye:local
+    container_name: visioneye-local-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=visioneye-production-secret-key-change-in-env
+      - ALLOWED_HOSTS=*
+      - CORS_ALLOW_ALL_ORIGINS=True
+      - MODEL_PATH=/app/backend/models/yolo26n.onnx
+      - CONFIDENCE_THRESHOLD=0.40
+    volumes:
+      - visioneye-media:/app/backend/media
+      - visioneye-data:/app/backend/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  visioneye-media:
+  visioneye-data:

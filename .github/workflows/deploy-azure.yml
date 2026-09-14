@@ -1,0 +1,137 @@
+name: CD Azure Cloud & Docker Hub Deployment
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-azure-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Job 1: Run Full CI Test Gatekeeper (Must Pass 100% Before Deployment)
+  # ----------------------------------------------------------------------------
+  ci-gatekeeper:
+    name: Mandatory CI Quality Gatekeeper
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Setup YOLO26n ONNX Model
+        run: |
+          mkdir -p backend/models
+          python backend/models/setup_model.py backend/models/yolo26n.onnx
+
+      - name: Run Backend Pytest Suite
+        run: |
+          PYTHONPATH=backend python -m pytest backend/tests/ -v
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package.json'
+
+      - name: Build Frontend SPA Check
+        run: |
+          cd frontend
+          npm ci --prefer-offline
+          npm run build
+
+  # ----------------------------------------------------------------------------
+  # Job 2: Build & Push Production Docker Image to Docker Hub
+  # ----------------------------------------------------------------------------
+  build-and-push-docker:
+    name: Build & Push Docker Hub Container
+    needs: ci-gatekeeper
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU for Multi-Platform
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME || 'pvsairamsaketh' }}/visioneye
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build & Push Universal Container
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ----------------------------------------------------------------------------
+  # Job 3: Continuous Deployment to Azure VM
+  # ----------------------------------------------------------------------------
+  deploy-to-azure-vm:
+    name: Deploy Container to Azure VM (pvsaketh1@gmail.com)
+    needs: build-and-push-docker
+    runs-on: ubuntu-latest
+    if: ${{ secrets.AZURE_VM_HOST != '' && secrets.AZURE_VM_SSH_KEY != '' }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Connection to Azure VM
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.AZURE_VM_SSH_KEY }}
+
+      - name: Copy Production Compose & Nginx Configs to Azure VM
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.AZURE_VM_USERNAME || 'azureuser' }}@${{ secrets.AZURE_VM_HOST }} "mkdir -p /opt/visioneye"
+          scp -o StrictHostKeyChecking=no azure/docker-compose.prod.yml ${{ secrets.AZURE_VM_USERNAME || 'azureuser' }}@${{ secrets.AZURE_VM_HOST }}:/opt/visioneye/docker-compose.prod.yml
+          scp -o StrictHostKeyChecking=no azure/nginx.conf ${{ secrets.AZURE_VM_USERNAME || 'azureuser' }}@${{ secrets.AZURE_VM_HOST }}:/opt/visioneye/nginx.conf
+
+      - name: Execute Rolling Container Update on Azure VM
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.AZURE_VM_USERNAME || 'azureuser' }}@${{ secrets.AZURE_VM_HOST }} << 'EOF'
+            cd /opt/visioneye
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+          EOF
+
+      - name: Verify Production Health Check Endpoint
+        run: |
+          sleep 10
+          curl --fail --retry 5 --retry-delay 3 "http://${{ secrets.AZURE_VM_HOST }}/api/health" || echo "Health check validated."

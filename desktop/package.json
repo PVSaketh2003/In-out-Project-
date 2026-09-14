@@ -1,0 +1,95 @@
+{
+  "name": "visioneye-desktop",
+  "version": "1.0.0",
+  "description": "VisionEye Foot-Traffic Analytics & Computer Vision Desktop Application",
+  "main": "main.js",
+  "author": "P V Sairam Saketh <pvsairamsaketh@gmail.com>",
+  "homepage": "https://pvsairamsaketh.in",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:mac-arm": "electron-builder --mac --arm64",
+    "dist:mac-intel": "electron-builder --mac --x64",
+    "dist:win": "electron-builder --win --x64",
+    "dist:linux": "electron-builder --linux --x64"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.pvsairamsaketh.visioneye",
+    "productName": "VisionEye",
+    "copyright": "Copyright © 2026 P V Sairam Saketh",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "dist-frontend/**/*",
+      "dist-backend/**/*",
+      "models/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/models",
+        "to": "models",
+        "filter": ["*.onnx"]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["arm64", "x64"]
+        }
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "VisionEye-macOS-${arch}.${ext}"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "VisionEye-Windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "VisionEye"
+    },
+    "linux": {
+      "category": "Utility",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "VisionEye-Linux-${arch}.${ext}"
+    }
+  }
+}

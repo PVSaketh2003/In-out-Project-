@@ -1,0 +1,165 @@
+name: Release & Multi-OS Distribution
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "release-${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Job 1: Build Multi-OS Desktop Installers
+  # ----------------------------------------------------------------------------
+  build-installers:
+    name: Build Installer (${{ matrix.os }} - ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos
+            arch: arm64
+            runner: macos-14
+            command: npm run dist:mac-arm
+          - os: macos
+            arch: x64
+            runner: macos-13
+            command: npm run dist:mac-intel
+          - os: windows
+            arch: x64
+            runner: windows-latest
+            command: npm run dist:win
+          - os: linux
+            arch: x64
+            runner: ubuntu-latest
+            command: npm run dist:linux
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package.json'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build Frontend SPA
+        run: |
+          cd frontend
+          npm install
+          npm run build
+          mkdir -p ../desktop/dist-frontend
+          cp -r dist/* ../desktop/dist-frontend/
+
+      - name: Stage ML Model & Resources
+        shell: bash
+        run: |
+          mkdir -p desktop/models
+          if [ -f "backend/models/yolo26n.onnx" ]; then
+            cp backend/models/yolo26n.onnx desktop/models/
+          else
+            python backend/models/setup_model.py desktop/models/yolo26n.onnx
+          fi
+
+      - name: Package Desktop Installer (${{ matrix.os }}-${{ matrix.arch }})
+        run: |
+          cd desktop
+          npm install
+          ${{ matrix.command }}
+
+      - name: Stage Release Artifacts
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp desktop/release/*.dmg artifacts/ 2>/dev/null || true
+          cp desktop/release/*.exe artifacts/ 2>/dev/null || true
+          cp desktop/release/*.AppImage artifacts/ 2>/dev/null || true
+          cp desktop/release/*.deb artifacts/ 2>/dev/null || true
+          cp desktop/release/*.zip artifacts/ 2>/dev/null || true
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.os }}-${{ matrix.arch }}
+          path: artifacts/*
+          if-no-files-found: warn
+
+  # ----------------------------------------------------------------------------
+  # Job 2: Generate Checksums & Publish GitHub Release
+  # ----------------------------------------------------------------------------
+  publish-release:
+    name: Generate Checksums & Publish GitHub Release
+    needs: build-installers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-binaries
+          merge-multiple: true
+
+      - name: Generate SHA-256 Checksums
+        run: |
+          cd release-binaries
+          echo "### VisionEye Release Binaries SHA-256 Checksums" > SHA256SUMS.txt
+          echo "Generated on $(date -u)" >> SHA256SUMS.txt
+          echo "" >> SHA256SUMS.txt
+          sha256sum * 2>/dev/null >> SHA256SUMS.txt || shasum -a 256 * >> SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: VisionEye ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release-binaries/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ----------------------------------------------------------------------------
+  # Job 3: Deploy Download Website to pvsairamsaketh.in via GitHub Pages
+  # ----------------------------------------------------------------------------
+  deploy-website:
+    name: Deploy Download Website to pvsairamsaketh.in
+    needs: publish-release
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Website Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'website'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

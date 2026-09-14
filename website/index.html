@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VisionEye | Real-Time Foot-Traffic Analytics & Computer Vision Platform</title>
+  <meta name="description" content="Download VisionEye: Production-grade real-time foot-traffic analytics, multi-person tracking, and 4-point homography 2D ground mapping powered by YOLO26n ONNX.">
+  <meta name="author" content="P V Sairam Saketh">
+  
+  <!-- Canonical & Domain URL -->
+  <link rel="canonical" href="https://pvsairamsaketh.in/">
+  <meta property="og:title" content="VisionEye | Real-Time Foot-Traffic Analytics">
+  <meta property="og:description" content="High-performance edge AI computer vision application for macOS, Windows, and Linux.">
+  <meta property="og:url" content="https://pvsairamsaketh.in/">
+  <meta property="og:type" content="website">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="container nav-content">
+      <a href="https://pvsairamsaketh.in" class="brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>VISIONEYE</h1>
+          <span>P V SAIRAM SAKETH</span>
+        </div>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#downloads">Downloads</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#install">Installation</a></li>
+        <li><a href="#specs">System Specs</a></li>
+        <li><a href="#changelog">Changelog</a></li>
+        <li><a href="https://github.com/PVSaketh2003/In-out-Project-" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="#downloads" class="nav-btn">Get App</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="container">
+      <div class="badge-version">
+        <span class="pulse-dot"></span>
+        <span>LATEST RELEASE: <strong class="js-latest-version">v1.0.0</strong> • <span class="js-release-date">Active Production</span></span>
+      </div>
+
+      <h1 class="hero-title">
+        Real-Time Foot-Traffic Analytics<br>
+        <span class="hero-gradient">Powered by Edge Computer Vision</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        VisionEye is an offline-first, production-ready computer vision desktop platform for multi-person tracking, directional IN/OUT pedestrian counting, 4-point homography 2D ground mapping, and privacy masking.
+      </p>
+
+      <!-- Primary Auto-Detected Download CTA Box -->
+      <div class="download-cta-box" id="downloads">
+        <div class="detected-header">Detected Platform:</div>
+        <div class="detected-platform-title" id="detectedPlatformTitle">
+          💻 Detecting your operating system...
+        </div>
+
+        <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="primaryDownloadBtn" class="btn-download-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Download VisionEye Desktop</span>
+        </a>
+
+        <div class="download-meta">
+          <span id="detectedFileName">VisionEye Installer (~115 MB)</span>
+          <span>•</span>
+          <span>100% Free & Open Source</span>
+          <span>•</span>
+          <span>Zero Cloud Account Required</span>
+        </div>
+      </div>
+
+      <!-- Application Preview -->
+      <div class="hero-preview">
+        <div class="hero-preview-inner">
+          <img src="https://raw.githubusercontent.com/PVSaketh2003/In-out-Project-/main/architecture.png" alt="VisionEye Dashboard Architecture Preview" onerror="this.src='https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80'">
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Multi-Platform Download Matrix Section -->
+  <section class="section" id="all-downloads" style="background: rgba(13, 19, 33, 0.4); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Cross-Platform Installers</span>
+        <h2 class="section-title">All Supported Platforms</h2>
+        <p class="section-desc">Download standalone native packages for Apple Silicon, Intel macOS, 64-bit Windows, or Linux.</p>
+      </div>
+
+      <div class="platform-grid">
+        <!-- macOS Apple Silicon -->
+        <div class="platform-card">
+          <div>
+            <div class="platform-icon">🍏</div>
+            <h3 class="platform-name">macOS (Apple Silicon)</h3>
+            <div class="platform-arch">ARM64 • M1 / M2 / M3 / M4</div>
+            <ul class="platform-specs">
+              <li>✓ CoreML Neural Engine Acceleration</li>
+              <li>✓ Sub-10ms YOLO26n Inference</li>
+              <li>✓ macOS 12 Monterey or newer</li>
+            </ul>
+          </div>
+          <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="btnMacArm" class="btn-platform-download">
+            Download DMG (ARM64)
+          </a>
+        </div>
+
+        <!-- macOS Intel -->
+        <div class="platform-card">
+          <div>
+            <div class="platform-icon">🍎</div>
+            <h3 class="platform-name">macOS (Intel x86_64)</h3>
+            <div class="platform-arch">Intel x64 Core i5/i7/i9/Xeon</div>
+            <ul class="platform-specs">
+              <li>✓ Multi-threaded CPU Provider</li>
+              <li>✓ Native DMG Installer package</li>
+              <li>✓ macOS 11 Big Sur or newer</li>
+            </ul>
+          </div>
+          <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="btnMacIntel" class="btn-platform-download">
+            Download DMG (x86_64)
+          </a>
+        </div>
+
+        <!-- Windows -->
+        <div class="platform-card">
+          <div>
+            <div class="platform-icon">🪟</div>
+            <h3 class="platform-name">Windows (64-bit)</h3>
+            <div class="platform-arch">Windows 10 / 11 (x64)</div>
+            <ul class="platform-specs">
+              <li>✓ Self-contained NSIS Installer (.exe)</li>
+              <li>✓ DirectML & CPU Acceleration</li>
+              <li>✓ Windows 10/11 64-bit</li>
+            </ul>
+          </div>
+          <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="btnWin" class="btn-platform-download">
+            Download .exe (x64)
+          </a>
+        </div>
+
+        <!-- Linux -->
+        <div class="platform-card">
+          <div>
+            <div class="platform-icon">🐧</div>
+            <h3 class="platform-name">Linux (x86_64)</h3>
+            <div class="platform-arch">Ubuntu, Debian, Fedora, Arch</div>
+            <ul class="platform-specs">
+              <li>✓ Portable AppImage package</li>
+              <li>✓ Standard glibc 2.31+ compatibility</li>
+              <li>✓ Standalone execution</li>
+            </ul>
+          </div>
+          <a href="https://github.com/PVSaketh2003/In-out-Project-/releases" id="btnLinux" class="btn-platform-download">
+            Download AppImage (x64)
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Features Section -->
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Core Capabilities</span>
+        <h2 class="section-title">Engineered for Real-Time Edge Intelligence</h2>
+        <p class="section-desc">Zero external cloud dependencies. Everything runs locally on your workstation or embedded terminal.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon icon-cyan">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="m4.93 4.93 4.24 4.24"></path><path d="m14.83 9.17 4.24-4.24"></path><path d="m14.83 14.83 4.24 4.24"></path><path d="m9.17 14.83-4.24 4.24"></path></svg>
+          </div>
+          <h3 class="feature-title">YOLO26n ONNX Neural Engine</h3>
+          <p class="feature-desc">Ultra-lightweight person detection model (10.7MB, ~2.4M parameters) delivering 9ms inference latency with Apple Silicon CoreML hardware acceleration.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-emerald">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          </div>
+          <h3 class="feature-title">ByteTrack Multi-Person Tracking</h3>
+          <p class="feature-desc">Industrial Kalman filtering with Hungarian IoU association maintains persistent track IDs across dense pedestrian crowds and brief occlusions.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-purple">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+          </div>
+          <h3 class="feature-title">4-Point Homography Top-View Minimap</h3>
+          <p class="feature-desc">Transform angled surveillance camera footage into a 2D bird's-eye orthographic ground plane with 1-click auto-calibration and real-time perspective mapping.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-amber">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"></path><path d="m17 5-5-3-5 3"></path><path d="m17 19-5 3-5-3"></path></svg>
+          </div>
+          <h3 class="feature-title">Virtual Counting Line & Analytics</h3>
+          <p class="feature-desc">Sub-pixel line-crossing detection with directional enter/exit debouncing, real-time venue occupancy tracking, and timeline flow history.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-cyan">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          </div>
+          <h3 class="feature-title">Privacy Protection Masking</h3>
+          <p class="feature-desc">On-the-fly anonymization applying dynamic Gaussian blur or pixelation filters over detected human bounding boxes prior to stream encoding.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-emerald">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+          </div>
+          <h3 class="feature-title">Multiple Input Feeds</h3>
+          <p class="feature-desc">Supports dynamic macOS / USB webcams, MP4/MOV video files (with continuous seamless looping), IP RTSP surveillance cameras, and synthetic generators.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step-by-Step Installation Guide -->
+  <section class="section" id="install" style="background: rgba(13, 19, 33, 0.4); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Quick Start</span>
+        <h2 class="section-title">Installation Guide</h2>
+        <p class="section-desc">Follow these straightforward steps to install and launch VisionEye on your operating system.</p>
+      </div>
+
+      <div class="install-box">
+        <div class="tab-nav">
+          <button class="tab-btn active" data-tab="tab-macos">🍏 macOS</button>
+          <button class="tab-btn" data-tab="tab-windows">🪟 Windows</button>
+          <button class="tab-btn" data-tab="tab-linux">🐧 Linux</button>
+        </div>
+
+        <!-- macOS Tab -->
+        <div class="tab-content active" id="tab-macos">
+          <ul class="step-list">
+            <li class="step-item">
+              <div class="step-number">1</div>
+              <div class="step-text">
+                <h4>Download the DMG installer</h4>
+                <p>Choose <strong>VisionEye-macOS-AppleSilicon.dmg</strong> (for M1/M2/M3/M4 Macs) or <strong>VisionEye-macOS-Intel.dmg</strong> (for older Intel Macs).</p>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">2</div>
+              <div class="step-text">
+                <h4>Open DMG & Drag to Applications</h4>
+                <p>Double-click the downloaded <code>.dmg</code> file and drag the <strong>VisionEye.app</strong> icon into your <strong>Applications</strong> folder.</p>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">3</div>
+              <div class="step-text">
+                <h4>Launch & Grant Permissions</h4>
+                <p>Open VisionEye from Spotlight or Launchpad. On first launch, macOS Gatekeeper may prompt confirmation. Right-click the app and click <strong>Open</strong> if prompted, then allow Camera access when prompted.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Windows Tab -->
+        <div class="tab-content" id="tab-windows">
+          <ul class="step-list">
+            <li class="step-item">
+              <div class="step-number">1</div>
+              <div class="step-text">
+                <h4>Download Windows Installer</h4>
+                <p>Download <strong>VisionEye-Windows-x64.exe</strong> from the download section above.</p>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">2</div>
+              <div class="step-text">
+                <h4>Run Setup</h4>
+                <p>Double-click <code>VisionEye-Windows-x64.exe</code>. If Windows SmartScreen displays "Windows protected your PC", click <strong>More info</strong> → <strong>Run anyway</strong>.</p>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">3</div>
+              <div class="step-text">
+                <h4>Complete Installation</h4>
+                <p>Follow the installer wizard to create a Desktop shortcut and launch VisionEye.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Linux Tab -->
+        <div class="tab-content" id="tab-linux">
+          <ul class="step-list">
+            <li class="step-item">
+              <div class="step-number">1</div>
+              <div class="step-text">
+                <h4>Download AppImage</h4>
+                <p>Download <strong>VisionEye-Linux-x64.AppImage</strong>.</p>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">2</div>
+              <div class="step-text">
+                <h4>Make Executable</h4>
+                <p>Grant execution permissions via terminal or file properties:</p>
+                <div class="code-block">
+                  <span>chmod +x VisionEye-Linux-x64.AppImage</span>
+                </div>
+              </div>
+            </li>
+            <li class="step-item">
+              <div class="step-number">3</div>
+              <div class="step-text">
+                <h4>Execute Application</h4>
+                <p>Double-click or run from terminal: <code>./VisionEye-Linux-x64.AppImage</code></p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- System Specifications Table -->
+  <section class="section" id="specs">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Compatibility</span>
+        <h2 class="section-title">System Requirements</h2>
+        <p class="section-desc">Hardware and operating system prerequisites for running VisionEye at 30 FPS.</p>
+      </div>
+
+      <div class="specs-table-box">
+        <table class="specs-table">
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Minimum Requirements</th>
+              <th>Recommended (Optimal 30+ FPS)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Operating System</strong></td>
+              <td>macOS 12+, Windows 10 (64-bit), Ubuntu 20.04+</td>
+              <td>macOS 14 Sonoma (Apple Silicon M-series), Windows 11</td>
+            </tr>
+            <tr>
+              <td><strong>Processor</strong></td>
+              <td>Quad-core Intel / AMD x86_64 or Apple M1</td>
+              <td>Apple Silicon M2 / M3 / M4 or Intel Core i7 11th Gen+</td>
+            </tr>
+            <tr>
+              <td><strong>Memory (RAM)</strong></td>
+              <td>4 GB RAM</td>
+              <td>8 GB RAM or higher</td>
+            </tr>
+            <tr>
+              <td><strong>Disk Space</strong></td>
+              <td>500 MB free space</td>
+              <td>1 GB SSD storage for video recordings</td>
+            </tr>
+            <tr>
+              <td><strong>Video Capture</strong></td>
+              <td>Standard 720p USB webcam or local video file</td>
+              <td>1080p 60fps HD camera / RTSP IP stream</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Changelog Section -->
+  <section class="section" id="changelog" style="background: rgba(13, 19, 33, 0.4); border-top: 1px solid var(--border-subtle);">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Release History</span>
+        <h2 class="section-title">Latest Updates & Changelog</h2>
+      </div>
+
+      <div class="install-box" style="max-width: 760px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.75rem;">
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--accent-cyan);">VisionEye v1.0.0 — Production Release</h3>
+          <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-emerald);">Initial Public Release</span>
+        </div>
+        <ul style="list-style: none; font-size: 0.88rem; color: var(--text-muted); line-height: 1.8;">
+          <li>✨ <strong>YOLO26n ONNX Engine</strong>: High-speed 9ms person detection with Apple Silicon CoreML hardware acceleration.</li>
+          <li>⚡ <strong>1-Click Auto-Calibrate</strong>: Instant 0ms ground floor perspective fitting with camera angle presets.</li>
+          <li>🔄 <strong>Continuous Video Looping</strong>: Seamless EOF auto-reopen playback without stream freezing.</li>
+          <li>📊 <strong>Top-View 2D Radar</strong>: Orthographic bird's-eye spatial positioning and trajectory breadcrumbs.</li>
+          <li>🛡️ <strong>Privacy Protection</strong>: Real-time Gaussian blur and pixelation filters.</li>
+          <li>🌐 <strong>Automated CI/CD Distribution</strong>: Official binary releases on GitHub and domain <code>pvsairamsaketh.in</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-content">
+      <div>
+        <strong style="color: #fff; font-size: 0.95rem;">VisionEye Foot-Traffic Analytics</strong>
+        <div style="margin-top: 0.25rem;">Engineered by <strong>P V Sairam Saketh</strong> &bull; Hosted on <a href="https://pvsairamsaketh.in" style="color: var(--accent-cyan); text-decoration: none;">pvsairamsaketh.in</a></div>
+      </div>
+
+      <div class="footer-links">
+        <a href="#downloads">Downloads</a>
+        <a href="#features">Features</a>
+        <a href="#install">Installation</a>
+        <a href="https://github.com/PVSaketh2003/In-out-Project-" target="_blank" rel="noopener">GitHub Repository</a>
+        <a href="mailto:pvsairamsaketh@gmail.com">Contact Support</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>

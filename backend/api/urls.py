@@ -1,0 +1,20 @@
+"""
+API URL Routing
+"""
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("health", views.HealthCheckView.as_view(), name="api-health"),
+    path("cameras", views.AvailableCamerasView.as_view(), name="api-cameras"),
+    path("video/feed", views.video_feed_stream, name="api-video-feed"),
+    path("video/frame", views.video_single_frame, name="api-video-frame"),
+    path("video/upload", views.VideoUploadView.as_view(), name="api-video-upload"),
+    path("video/<str:action>", views.VideoSourceControlView.as_view(), name="api-video-control"),
+    path("config", views.ConfigView.as_view(), name="api-config"),
+    path("counting-line", views.CountingLineView.as_view(), name="api-counting-line"),
+    path("perspective", views.PerspectiveView.as_view(), name="api-perspective"),
+    path("analytics", views.AnalyticsView.as_view(), name="api-analytics"),
+    path("analytics/reset", views.AnalyticsView.as_view(), name="api-analytics-reset"),
+    path("tracking/reset", views.ResetTrackingView.as_view(), name="api-tracking-reset"),
+]

@@ -1,0 +1,135 @@
+name: CI Quality & Test Gatekeeper
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Job 1: Backend Quality, Migrations & Unit/Integration Tests
+  # ----------------------------------------------------------------------------
+  backend-test:
+    name: Backend Pytest & Django Checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11']
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Ensure Model & Directory Assets
+        run: |
+          mkdir -p backend/models backend/media/uploads backend/data
+          python backend/models/setup_model.py backend/models/yolo26n.onnx
+
+      - name: Validate Django Configuration & Migrations
+        run: |
+          cd backend
+          python manage.py check
+          python manage.py migrate --noinput
+
+      - name: Run Pytest Test Suite
+        run: |
+          PYTHONPATH=backend python -m pytest backend/tests/ -v --color=yes
+
+  # ----------------------------------------------------------------------------
+  # Job 2: Frontend Build Validation & Asset Integrity
+  # ----------------------------------------------------------------------------
+  frontend-build:
+    name: Frontend SPA Vite Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package.json'
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci --prefer-offline --no-audit
+
+      - name: Build Frontend SPA
+        run: |
+          cd frontend
+          npm run build
+
+  # ----------------------------------------------------------------------------
+  # Job 3: Production Docker Container Build Validation
+  # ----------------------------------------------------------------------------
+  docker-validation:
+    name: Universal Docker Build Verification
+    needs: [backend-test, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Production Docker Image (Dry-Run Test)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: visioneye:ci-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ----------------------------------------------------------------------------
+  # Job 4: Desktop Packaging Validation
+  # ----------------------------------------------------------------------------
+  desktop-validation:
+    name: Desktop Packaging Validation
+    needs: [backend-test, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'desktop/package.json'
+
+      - name: Build Frontend Dist for Desktop Staging
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          mkdir -p ../desktop/dist-frontend
+          cp -r dist/* ../desktop/dist-frontend/
+
+      - name: Test Desktop App Packaging Dry-Run
+        run: |
+          cd desktop
+          npm ci
+          npx electron-builder --linux --dir

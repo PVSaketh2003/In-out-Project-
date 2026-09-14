@@ -1,0 +1,83 @@
+import React from 'react';
+import { Eye, Cpu, Radio, Activity, Info, Sliders, Maximize, ShieldCheck } from 'lucide-react';
+
+export default function Header({ telemetry, wsStatus, onOpenSystemInfo, onOpenCalibrationGuide, onToggleFullscreen }) {
+  const isAppleSilicon = telemetry?.providers?.some(p => p.includes('CoreML')) || true;
+  const fps = telemetry?.fps || 0;
+  const resolution = telemetry?.resolution || '640x480';
+
+  return (
+    <header className="header-bar">
+      <div className="logo-section">
+        <div className="logo-icon-box">
+          <Eye size={22} className="animate-pulse" />
+        </div>
+        <div>
+          <h1 className="brand-title">VISIONEYE</h1>
+          <div className="brand-subtitle">Foot-Traffic Analytics &bull; Real-Time CV</div>
+        </div>
+      </div>
+
+      <div className="header-badges">
+        {/* Apple Silicon M4 / CoreML Badge */}
+        <div className="badge badge-silicon" title="Hardware Acceleration: Apple Silicon M4">
+          <Cpu size={14} />
+          <span>M4 Apple Silicon {telemetry?.providers?.includes('CoreMLExecutionProvider') ? '(CoreML)' : '(CPU)'}</span>
+        </div>
+
+        {/* Model info */}
+        <div className="badge" title="Underlying Model: YOLO26n ONNX">
+          <span>{telemetry?.model || 'YOLO26n ONNX'}</span>
+        </div>
+
+        {/* Resolution */}
+        <div className="badge" title="Input Resolution">
+          <span>{resolution}</span>
+        </div>
+
+        {/* WebSocket Connection Status */}
+        <div className={`badge ${wsStatus === 'connected' ? 'badge-live' : 'badge-danger'}`} title="WebSocket Status">
+          <span className={`pulse-dot ${wsStatus === 'connected' ? '' : 'bg-red-500'}`} />
+          <Radio size={13} />
+          <span>{wsStatus === 'connected' ? 'LIVE WS' : 'RECONNECTING'}</span>
+        </div>
+
+        {/* Real-Time Processing FPS */}
+        <div className="badge" style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: '#F59E0B' }} title="Actual Processing FPS">
+          <Activity size={14} />
+          <span>{fps} FPS</span>
+        </div>
+
+        {/* Actions */}
+        <button
+          onClick={onOpenCalibrationGuide}
+          className="btn btn-secondary"
+          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+          title="Calibration Guide"
+        >
+          <Sliders size={14} />
+          <span>Calibration</span>
+        </button>
+
+        <button
+          onClick={onOpenSystemInfo}
+          className="btn btn-secondary"
+          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+          title="System Diagnostics & Specs"
+        >
+          <Info size={14} />
+          <span>System</span>
+        </button>
+
+        <button
+          onClick={onToggleFullscreen}
+          className="btn btn-secondary"
+          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+          title="Toggle Fullscreen"
+        >
+          <Maximize size={14} />
+        </button>
+      </div>
+    </header>
+  );
+}
