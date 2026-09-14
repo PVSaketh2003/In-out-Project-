@@ -46,6 +46,19 @@ export async function startVideoSource(sourceType, sourcePath = null, cameraInde
   }
 }
 
+export async function pushClientFrame(frameBase64) {
+  try {
+    const res = await fetch(`${API_BASE}/video/client_frame`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frame: frameBase64 }),
+    });
+    return await res.json();
+  } catch (err) {
+    return null;
+  }
+}
+
 export async function controlVideo(action) {
   try {
     const res = await fetch(`${API_BASE}/video/${action}`, {

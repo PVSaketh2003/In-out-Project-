@@ -35,6 +35,8 @@ class VideoSourceManager:
         self.is_paused = False
         self._lock = threading.Lock()
         self._sim_time = 0.0
+        self._client_frame = None
+        self._last_client_frame_time = 0.0
 
     @staticmethod
     def list_available_cameras() -> List[Dict[str, Any]]:
@@ -158,6 +160,14 @@ class VideoSourceManager:
                         self.is_running = True
                         return True
 
+                elif self.source_type in ("client", "device_camera", "browser_camera"):
+                    self.source_type = "client"
+                    self.width = 640
+                    self.height = 480
+                    self.fps = 30.0
+                    self.is_running = True
+                    return True
+
                 else:  # synthetic
                     self.width = 640
                     self.height = 480
@@ -171,6 +181,16 @@ class VideoSourceManager:
                 self.is_running = True
                 return True
 
+    def push_client_frame(self, frame: np.ndarray):
+        """Pushes a live frame captured from a client browser or smartphone camera."""
+        with self._lock:
+            self.source_type = "client"
+            self._client_frame = frame
+            self.width = frame.shape[1]
+            self.height = frame.shape[0]
+            self._last_client_frame_time = time.time()
+            self.is_running = True
+
     def read(self) -> Tuple[bool, Optional[np.ndarray]]:
         """
         Reads the next frame. Auto-loops video files and handles stream reconnections.
@@ -179,11 +199,17 @@ class VideoSourceManager:
             return False, None
 
         if self.is_paused:
-            # Return synthetic blank or sleep slightly
             time.sleep(0.033)
             return False, None
 
         with self._lock:
+            if self.source_type == "client":
+                if self._client_frame is not None and (time.time() - self._last_client_frame_time) < 4.0:
+                    return True, self._client_frame.copy()
+                # Fallback to demo if client stopped sending frames
+                frame = self._generate_synthetic_frame()
+                return True, frame
+
             if self.source_type == "synthetic":
                 frame = self._generate_synthetic_frame()
                 return True, frame

@@ -144,6 +144,41 @@ class VideoUploadView(APIView):
         })
 
 
+import base64
+
+
+class ClientFramePushView(APIView):
+    """
+    Accepts real-time camera frames streamed directly from client browsers and mobile phones.
+    POST /api/video/client_frame
+    """
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def post(self, request):
+        pipeline = get_pipeline(auto_start=True)
+        img_data = request.data.get("frame")
+
+        frame = None
+        # Support multipart file upload
+        if request.FILES.get("frame"):
+            file_bytes = request.FILES.get("frame").read()
+            nparr = np.frombuffer(file_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        elif img_data:
+            if "," in str(img_data):
+                img_data = str(img_data).split(",", 1)[1]
+            file_bytes = base64.b64decode(img_data)
+            nparr = np.frombuffer(file_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if frame is not None and frame.size > 0:
+            pipeline.video_source.push_client_frame(frame)
+            return Response({"status": "ok", "telemetry": pipeline.get_latest_telemetry()})
+
+        return Response({"error": "No valid frame decoded"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 class ConfigView(APIView):
     """
     Manages runtime pipeline configuration.

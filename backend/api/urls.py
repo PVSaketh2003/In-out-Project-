@@ -9,6 +9,7 @@ urlpatterns = [
     path("cameras", views.AvailableCamerasView.as_view(), name="api-cameras"),
     path("video/feed", views.video_feed_stream, name="api-video-feed"),
     path("video/frame", views.video_single_frame, name="api-video-frame"),
+    path("video/client_frame", views.ClientFramePushView.as_view(), name="api-video-client-frame"),
     path("video/upload", views.VideoUploadView.as_view(), name="api-video-upload"),
     path("video/<str:action>", views.VideoSourceControlView.as_view(), name="api-video-control"),
     path("config", views.ConfigView.as_view(), name="api-config"),

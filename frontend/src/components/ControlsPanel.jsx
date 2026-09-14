@@ -9,6 +9,7 @@ import {
   applyPerspectivePreset, autoCalibrateFloor, updateCountingLine
 } from '../services/api';
 import { wsService } from '../services/websocket';
+import { logError } from './VideoPlayer';
 
 export default function ControlsPanel({
   telemetry,
@@ -58,36 +59,71 @@ export default function ControlsPanel({
   // Switch Source
   const handleApplySource = async () => {
     try {
-      if (sourceType === 'webcam') {
+      if (sourceType === 'device_camera') {
+        window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: true } }));
+        await startVideoSource('client');
+        showNotification('📱 Device Camera Active — Grant camera permission if prompted');
+        logError('Source', 'Switched to device camera mode', 'client');
+      } else if (sourceType === 'webcam') {
+        window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
         await startVideoSource('webcam', null, selectedCameraIndex);
-        showNotification(`Switched to Camera #${selectedCameraIndex}`);
+        showNotification(`Switched to Hardware Camera #${selectedCameraIndex}`);
+        logError('Source', `Switched to webcam #${selectedCameraIndex}`, '');
       } else if (sourceType === 'rtsp') {
+        window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
         await startVideoSource('rtsp', rtspUrl);
         showNotification(`Connecting to RTSP stream...`);
+        logError('Source', 'Switched to RTSP stream', rtspUrl);
       } else if (sourceType === 'synthetic') {
+        window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
         await startVideoSource('synthetic');
-        showNotification('Switched to Synthetic Facility Stream');
+        showNotification('Switched to Demo Facility Stream');
+        logError('Source', 'Switched to synthetic demo stream', '');
       }
+      // Always trigger stream reload after source switch
+      setTimeout(() => window.dispatchEvent(new CustomEvent('visioneye:stream_reload')), 400);
     } catch (err) {
-      showNotification(`Error starting source: ${err.message}`);
+      showNotification(`❌ Source error: ${err.message}`);
+      logError('Source', `Source switch failed: ${err.message}`, sourceType);
     }
   };
 
-  // Video Upload
+  // Video Upload with Instant UI Playback
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type
+    const validTypes = ['video/mp4','video/quicktime','video/x-msvideo','video/x-matroska','video/webm'];
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+      showNotification('❌ Invalid file type. Use MP4, MOV, AVI, MKV, or WebM.');
+      logError('Upload', 'Invalid file type', file.type || file.name);
+      return;
+    }
+
     setUploading(true);
-    showNotification(`Uploading ${file.name}...`);
+    showNotification(`⚡ Uploading: ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)...`);
+    logError('Upload', `Starting upload: ${file.name}`, `${(file.size/1024/1024).toFixed(1)} MB`);
     try {
-      await uploadVideoFile(file);
+      window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
+      const result = await uploadVideoFile(file);
       setSourceType('file');
-      showNotification(`Video playing: ${file.name}`);
+      showNotification(`▶️ Now Playing: ${file.name}`);
+      logError('Upload', `Upload success: ${file.name}`, result?.source_info?.source_type || 'file');
+      // Give backend 300ms to open the file, then reload the MJPEG stream
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('visioneye:stream_reload'));
+      }, 300);
+      // Second reload in case MJPEG took longer
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('visioneye:stream_reload'));
+      }, 1500);
     } catch (err) {
-      showNotification(`Upload failed: ${err.message}`);
+      showNotification(`❌ Upload failed: ${err.message}`);
+      logError('Upload', `Upload failed: ${err.message}`, err.status || '');
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -184,36 +220,45 @@ export default function ControlsPanel({
         <label className="slider-label">VIDEO INPUT SOURCE</label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem' }}>
           <button
-            onClick={() => setSourceType('synthetic')}
+            onClick={() => { setSourceType('synthetic'); handleApplySource(); }}
             className={`btn ${sourceType === 'synthetic' ? 'btn-active' : 'btn-secondary'}`}
             style={{ padding: '0.45rem 0.5rem', fontSize: '0.75rem' }}
           >
-            Synthetic
+            Demo Stream
           </button>
           <button
-            onClick={() => setSourceType('webcam')}
-            className={`btn ${sourceType === 'webcam' ? 'btn-active' : 'btn-secondary'}`}
-            style={{ padding: '0.45rem 0.5rem', fontSize: '0.75rem' }}
+            onClick={() => { setSourceType('device_camera'); handleApplySource(); }}
+            className={`btn ${sourceType === 'device_camera' ? 'btn-active' : 'btn-secondary'}`}
+            style={{ padding: '0.45rem 0.5rem', fontSize: '0.75rem', borderColor: sourceType === 'device_camera' ? 'var(--accent-cyan)' : 'inherit' }}
           >
-            Webcam
+            📱 Phone Cam
           </button>
           <button
             onClick={() => setSourceType('file')}
             className={`btn ${sourceType === 'file' ? 'btn-active' : 'btn-secondary'}`}
             style={{ padding: '0.45rem 0.5rem', fontSize: '0.75rem' }}
           >
-            Upload
+            Upload Video
           </button>
           <button
-            onClick={() => setSourceType('rtsp')}
-            className={`btn ${sourceType === 'rtsp' ? 'btn-active' : 'btn-secondary'}`}
+            onClick={() => setSourceType('webcam')}
+            className={`btn ${sourceType === 'webcam' ? 'btn-active' : 'btn-secondary'}`}
             style={{ padding: '0.45rem 0.5rem', fontSize: '0.75rem' }}
           >
-            RTSP
+            Hardware Cam
           </button>
         </div>
 
         {/* Dynamic Source Inputs */}
+        {sourceType === 'device_camera' && (
+          <div style={{ padding: '0.65rem 0.85rem', background: 'rgba(0, 240, 255, 0.08)', borderRadius: '8px', border: '1px solid rgba(0, 240, 255, 0.25)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+            <span>📱 Using your phone/device camera. Tap "Flip Cam" on player to switch front/rear.</span>
+            <button onClick={handleApplySource} className="btn btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+              Restart Cam
+            </button>
+          </div>
+        )}
+
         {sourceType === 'webcam' && (
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
             <select
@@ -234,12 +279,15 @@ export default function ControlsPanel({
         )}
 
         {sourceType === 'file' && (
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
-            <label className="btn btn-primary" style={{ flex: 1, cursor: 'pointer', padding: '0.5rem' }}>
-              <Upload size={14} />
-              <span>{uploading ? 'Uploading...' : 'Choose MP4 / Video File'}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.2rem' }}>
+            <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+              <Upload size={15} />
+              <span>{uploading ? '⚡ Processing & Loading...' : 'Choose MP4 / MOV Video from Device'}</span>
               <input type="file" accept="video/*" onChange={handleFileUpload} style={{ display: 'none' }} />
             </label>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              Select any MP4, MOV, or MKV file • Automatically loops and processes in real-time
+            </span>
           </div>
         )}
 

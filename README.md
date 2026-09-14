@@ -135,6 +135,7 @@ All 13 unit and integration tests run in under 15 seconds, testing:
 
 ## 7. Deployment Guides
 
+- **[Docker & Azure Integration Architecture](docs/DOCKER_AZURE_INTEGRATION.md)**: Complete guide explaining how Docker, Azure VM, Docker Hub, Nginx SSL, and GitHub Actions CI/CD connect together.
 - **[Azure Cloud Deployment Guide](docs/AZURE_DEPLOYMENT.md)**: Full instructions for provisioning Azure VM, setting up Docker Hub, configuring Nginx reverse proxy, and enabling GitHub Actions CD.
 - **[GoDaddy DNS Configuration](docs/DOMAIN_SETUP.md)**: Exact A-records and CNAME setup to point `pvsairamsaketh.in` and `www.pvsairamsaketh.in` to the website or Azure instance.
 - **[Release Playbook](docs/RELEASE.md)**: How to create a release tag (`git tag v1.0.0`), monitor GitHub Actions, and verify SHA-256 checksums.

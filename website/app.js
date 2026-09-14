@@ -1,7 +1,7 @@
 /**
  * VisionEye Universal Web & Download Engine
  * Dynamic OS / Device Detection (macOS, Windows, Linux, Android, iOS)
- * GitHub Releases API Integration • Tab Navigation • Robust Fallback
+ * Seamless Fallback Modal • Tab Navigation • PWA Support
  * Domain: https://pvsairamsaketh.in
  */
 
@@ -26,18 +26,18 @@ function detectPlatform() {
   let icon = '💻';
   let fileName = '';
   let isMobile = false;
-  let directUrl = '';
+  let directUrl = '/live';
   let subtext = '';
 
   // 1. Check for Android
   if (ua.includes('android')) {
     os = 'android';
     isMobile = true;
-    label = 'Android Device (Smartphone / Tablet)';
+    label = 'Android Smartphone / Tablet';
     icon = '🤖';
     fileName = 'VisionEye Mobile Web App';
     directUrl = '/live';
-    subtext = 'Zero Install • Runs instantly in Chrome / Firefox';
+    subtext = 'Zero Install • Instant Access in Chrome / Firefox';
   }
   // 2. Check for iOS (iPhone / iPad / iPod)
   else if (
@@ -52,14 +52,13 @@ function detectPlatform() {
     icon = '📱';
     fileName = 'VisionEye iOS Web App';
     directUrl = '/live';
-    subtext = 'Zero Install • Runs instantly in Safari / Chrome';
+    subtext = 'Zero Install • Instant Access in Safari';
   }
   // 3. Check for macOS
   else if (platform.includes('mac') || ua.includes('macintosh') || ua.includes('mac os x')) {
     os = 'macos';
     isMobile = false;
     
-    // Check for Apple Silicon (ARM64)
     let isArm64 = false;
     if (navigator.userAgentData && navigator.userAgentData.architecture) {
       isArm64 = navigator.userAgentData.architecture.includes('arm');
@@ -92,7 +91,7 @@ function detectPlatform() {
       fileName = 'VisionEye-macOS-Intel.dmg';
       subtext = 'v1.0.0 • Intel x64 (.dmg)';
     }
-    directUrl = `${GITHUB_RELEASES_URL}/download/${FALLBACK_VERSION}/${fileName}`;
+    directUrl = '/live';
   } 
   // 4. Check for Windows
   else if (platform.includes('win') || ua.includes('windows')) {
@@ -103,7 +102,7 @@ function detectPlatform() {
     icon = '🪟';
     fileName = 'VisionEye-Windows-x64.exe';
     subtext = 'v1.0.0 • Windows Installer (.exe)';
-    directUrl = `${GITHUB_RELEASES_URL}/download/${FALLBACK_VERSION}/${fileName}`;
+    directUrl = '/live';
   } 
   // 5. Check for Linux
   else if (platform.includes('linux') || ua.includes('linux') || ua.includes('x11')) {
@@ -114,7 +113,7 @@ function detectPlatform() {
     icon = '🐧';
     fileName = 'VisionEye-Linux-x64.AppImage';
     subtext = 'v1.0.0 • Portable AppImage';
-    directUrl = `${GITHUB_RELEASES_URL}/download/${FALLBACK_VERSION}/${fileName}`;
+    directUrl = '/live';
   } 
   // 6. Generic Browser Fallback
   else {
@@ -131,6 +130,77 @@ function detectPlatform() {
 }
 
 /**
+ * Show Platform Information / Web App Launcher Modal
+ */
+function showPlatformModal(title, message, icon = '📱') {
+  const modal = document.getElementById('platformModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalIcon = document.getElementById('modalIcon');
+  
+  if (!modal) return;
+
+  if (modalTitle) modalTitle.textContent = title;
+  if (modalBody) modalBody.textContent = message;
+  if (modalIcon) modalIcon.textContent = icon;
+
+  modal.style.display = 'flex';
+}
+
+function hidePlatformModal() {
+  const modal = document.getElementById('platformModal');
+  if (modal) modal.style.display = 'none';
+}
+
+/**
+ * Setup Modal Event Listeners
+ */
+function setupModalListeners() {
+  const modal = document.getElementById('platformModal');
+  const closeBtn = document.getElementById('closeModalBtn');
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', hidePlatformModal);
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) hidePlatformModal();
+    });
+  }
+
+  // Intercept desktop download buttons for mobile users
+  const platform = detectPlatform();
+  const desktopButtons = ['btnMacArm', 'btnMacIntel', 'btnWin', 'btnLinux'];
+
+  desktopButtons.forEach((btnId) => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        if (platform.isMobile) {
+          e.preventDefault();
+          showPlatformModal(
+            'Mobile Device Detected',
+            `You are currently visiting on an ${platform.os === 'ios' ? 'iPhone / iPad (iOS)' : 'Android'} device. Desktop installer packages cannot run on mobile phones. You can run VisionEye right now directly in your mobile browser with full camera and AI support!`,
+            platform.os === 'ios' ? '📱' : '🤖'
+          );
+        } else {
+          // If no GitHub release binary is downloaded yet, guide desktop user to live web app
+          if (!latestReleaseData || !latestReleaseData.assets || latestReleaseData.assets.length === 0) {
+            e.preventDefault();
+            showPlatformModal(
+              'Launch Live Web Application',
+              'VisionEye is available to run right now in your browser with zero installation needed. Click Launch Live Web App below to start immediately!',
+              '⚡'
+            );
+          }
+        }
+      });
+    }
+  });
+}
+
+/**
  * Fetch latest release from GitHub API
  */
 async function fetchLatestRelease() {
@@ -141,7 +211,6 @@ async function fetchLatestRelease() {
     latestReleaseData = data;
     updateUIWithReleaseData(data);
   } catch (err) {
-    console.warn('[Website] Using fallback release configuration:', err);
     updateUIWithFallback();
   }
 }
@@ -153,9 +222,8 @@ function updateUIWithReleaseData(data) {
   const versionTag = data.tag_name || FALLBACK_VERSION;
   const publishedDate = data.published_at 
     ? new Date(data.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
-    : 'Active Production';
+    : 'Live Deployment';
   
-  // Update version badges
   document.querySelectorAll('.js-latest-version').forEach(el => el.textContent = versionTag);
   document.querySelectorAll('.js-release-date').forEach(el => el.textContent = publishedDate);
   
@@ -169,7 +237,7 @@ function updateUIWithReleaseData(data) {
 function updateUIWithFallback() {
   const userPlatform = detectPlatform();
   document.querySelectorAll('.js-latest-version').forEach(el => el.textContent = FALLBACK_VERSION);
-  document.querySelectorAll('.js-release-date').forEach(el => el.textContent = 'Active Production');
+  document.querySelectorAll('.js-release-date').forEach(el => el.textContent = 'Live Deployment');
   updateDownloadButtons(FALLBACK_VERSION, [], userPlatform);
 }
 
@@ -183,7 +251,7 @@ function updateDownloadButtons(version, assets, platform) {
   const ctaIcon = document.getElementById('primaryOsIcon');
   const ctaFileName = document.getElementById('detectedFileName');
   
-  if (ctaIcon) ctaIcon.textContent = platform.icon;
+  if (ctaIcon) ctaIcon.textContent = platform.isMobile ? '⚡' : '🚀';
   
   if (platform.isMobile) {
     if (ctaLabel) ctaLabel.textContent = `⚡ Launch Live App on ${platform.os === 'android' ? 'Android' : 'iOS'}`;
@@ -196,51 +264,24 @@ function updateDownloadButtons(version, assets, platform) {
       ctaFileName.textContent = `Zero Install Required • Runs inside any mobile browser`;
     }
   } else {
-    // Desktop Flow
-    let directUrl = `${GITHUB_RELEASES_URL}/download/${version}/${platform.fileName}`;
-    let assetSize = '~115 MB';
-
-    const matchedAsset = assets.find(a => a.name.toLowerCase() === platform.fileName.toLowerCase());
-    if (matchedAsset) {
-      directUrl = matchedAsset.browser_download_url;
-      assetSize = `${(matchedAsset.size / (1024 * 1024)).toFixed(1)} MB`;
-    }
-
+    // Desktop Flow: Provide direct access to web app or downloads
     if (ctaLabel) {
-      ctaLabel.textContent = `Download for ${platform.os === 'macos' ? 'macOS' : platform.os === 'windows' ? 'Windows' : 'Linux'}`;
+      ctaLabel.textContent = `⚡ Launch Live Web App`;
     }
     if (ctaSub) {
-      ctaSub.textContent = platform.subtext;
+      ctaSub.textContent = `Instant Access on ${platform.label} • Zero Setup`;
     }
     if (ctaBtn) {
-      ctaBtn.href = directUrl;
+      ctaBtn.href = '/live';
     }
     if (ctaFileName) {
-      ctaFileName.textContent = `${platform.fileName} (${assetSize})`;
+      ctaFileName.textContent = `Desktop & Mobile AI Foot-Traffic Analytics`;
     }
   }
-
-  // Update specific platform buttons
-  updateSpecificButton('btnMacArm', version, assets, 'VisionEye-macOS-AppleSilicon.dmg');
-  updateSpecificButton('btnMacIntel', version, assets, 'VisionEye-macOS-Intel.dmg');
-  updateSpecificButton('btnWin', version, assets, 'VisionEye-Windows-x64.exe');
-  updateSpecificButton('btnLinux', version, assets, 'VisionEye-Linux-x64.AppImage');
-}
-
-function updateSpecificButton(elemId, version, assets, targetFileName) {
-  const btn = document.getElementById(elemId);
-  if (!btn) return;
-  
-  let url = `${GITHUB_RELEASES_URL}/download/${version}/${targetFileName}`;
-  const asset = assets.find(a => a.name.toLowerCase() === targetFileName.toLowerCase());
-  if (asset) {
-    url = asset.browser_download_url;
-  }
-  btn.href = url;
 }
 
 /**
- * Setup Tabs
+ * Setup Installation Tabs
  */
 function setupTabs() {
   const tabButtons = document.querySelectorAll('.tab-btn');
@@ -259,15 +300,15 @@ function setupTabs() {
 
   // Auto-switch installation tab to detected OS
   const platform = detectPlatform();
-  let tabId = 'tab-macos';
-  if (platform.isMobile) {
-    tabId = 'tab-web';
-  } else if (platform.os === 'windows') {
-    tabId = 'tab-windows';
-  } else if (platform.os === 'linux') {
-    tabId = 'tab-linux';
-  } else if (platform.os === 'macos') {
-    tabId = 'tab-macos';
+  let tabId = 'tab-web';
+  if (!platform.isMobile) {
+    if (platform.os === 'windows') {
+      tabId = 'tab-windows';
+    } else if (platform.os === 'linux') {
+      tabId = 'tab-linux';
+    } else if (platform.os === 'macos') {
+      tabId = 'tab-macos';
+    }
   }
 
   const targetTab = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
@@ -276,29 +317,17 @@ function setupTabs() {
   }
 }
 
-// PWA Install Prompt State
+// PWA Install Prompt Handler
 let deferredInstallPrompt = null;
 
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  const ctaBtn = document.getElementById('primaryDownloadBtn');
-  const userPlatform = detectPlatform();
-  if (userPlatform.isMobile && ctaBtn) {
-    ctaBtn.textContent = '📲 Install VisionEye App';
-    ctaBtn.onclick = (evt) => {
-      if (deferredInstallPrompt) {
-        evt.preventDefault();
-        deferredInstallPrompt.prompt();
-        deferredInstallPrompt = null;
-      }
-    };
-  }
 });
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
+  setupModalListeners();
   fetchLatestRelease();
 });
-
