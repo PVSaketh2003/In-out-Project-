@@ -56,9 +56,8 @@ COPY pytest.ini ./.env.example ./
 # Copy built frontend SPA assets to static root
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Ensure models directory exists with YOLO26n ONNX model
+# Ensure models directory and uploads exist
 RUN mkdir -p /app/backend/models /app/backend/media/uploads /app/backend/data
-RUN python -c "from models.setup_model import create_yolo26n_onnx_model; import os; os.path.exists('/app/backend/models/yolo26n.onnx') or create_yolo26n_onnx_model('/app/backend/models/yolo26n.onnx')"
 
 # Apply migrations on build/startup preparation
 RUN cd backend && python manage.py migrate --noinput
