@@ -93,3 +93,24 @@ def test_video_upload_endpoint(client):
     assert data["status"] in ["uploaded_and_started", "uploaded"]
     assert "test_upload_sample.mp4" in data["file_name"]
 
+
+def test_client_frame_push_endpoint(client):
+    """Tests POST /api/video/client_frame with base64-encoded frame."""
+    import json
+    import base64
+    import numpy as np
+    import cv2
+
+    dummy_img = np.zeros((100, 100, 3), dtype=np.uint8)
+    _, buf = cv2.imencode(".jpg", dummy_img)
+    b64 = "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode("utf-8")
+
+    resp = client.post(
+        "/api/video/client_frame",
+        data=json.dumps({"frame": b64}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+
