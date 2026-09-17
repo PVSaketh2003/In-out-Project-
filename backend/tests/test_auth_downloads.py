@@ -21,7 +21,16 @@ def clean_otp_store():
 
 
 @pytest.mark.django_db
-def test_send_otp_success(client):
+def test_send_otp_success(client, monkeypatch):
+    import api.auth_views
+    monkeypatch.setattr(
+        api.auth_views,
+        "_get_smtp_credentials",
+        lambda: ("smtp.gmail.com", 587, "test@example.com", "fake-smtp-password"),
+    )
+    from unittest.mock import MagicMock
+    monkeypatch.setattr("django.core.mail.EmailMultiAlternatives.send", MagicMock(return_value=1))
+
     resp = client.post(
         "/api/auth/send-otp",
         data=json.dumps({"email": "testuser@example.com"}),

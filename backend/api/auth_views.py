@@ -68,6 +68,42 @@ def is_request_authenticated(request) -> tuple[bool, str]:
     return False, ""
 
 
+def _get_smtp_credentials():
+    """Retrieve SMTP credentials dynamically from settings, environment, or .env files."""
+    import os
+    from pathlib import Path
+    host = os.getenv("SMTP_HOST") or getattr(settings, "EMAIL_HOST", "smtp.gmail.com")
+    port = int(os.getenv("SMTP_PORT") or getattr(settings, "EMAIL_PORT", 587))
+    user = os.getenv("SMTP_USER") or getattr(settings, "EMAIL_HOST_USER", "pvsaketh1@gmail.com")
+    password = os.getenv("SMTP_PASSWORD") or getattr(settings, "EMAIL_HOST_PASSWORD", "")
+
+    if not password:
+        candidates = [
+            Path("/opt/visioneye/.env"),
+            Path("/app/.env"),
+            Path("/app/backend/.env"),
+            getattr(settings, "BASE_DIR", Path(".")) / ".env",
+            getattr(settings, "BASE_DIR", Path(".")).parent / ".env",
+        ]
+        for p in candidates:
+            if p.is_file():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith("SMTP_PASSWORD=") and not line.startswith("#"):
+                                val = line.split("=", 1)[1].strip().strip("\"'")
+                                if val:
+                                    password = val
+                                    break
+                except Exception:
+                    pass
+            if password:
+                break
+
+    return host, port, user, password
+
+
 class SendOTPView(APIView):
     """
     Generate and email 6-digit OTP to user's email.
@@ -111,48 +147,107 @@ class SendOTPView(APIView):
             "last_sent_at": now,
         }
 
-        # Compose email
-        subject = "VisionEye Verification Code"
-        body = (
-            f"Your verification code is:\n\n"
-            f"{otp}\n\n"
-            f"This code expires in 5 minutes.\n\n"
-            f"If you did not request this code, you can ignore this email."
+        # Compose plain-text and HTML email
+        subject = f"VisionEye Verification Code: {otp}"
+        text_body = (
+            f"Your VisionEye verification code is: {otp}\n\n"
+            f"This code will expire in 5 minutes.\n\n"
+            f"If you did not request this verification code, please ignore this email.\n"
         )
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#070a11;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellspacing="0" cellpadding="0" style="background:#070a11;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" style="max-width:480px;background:#0e1526;border-radius:16px;border:1px solid #1e293b;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,0.5);">
+          <tr>
+            <td style="padding:28px 24px 20px;text-align:center;border-bottom:1px solid #1e293b;background:linear-gradient(180deg,#111a30,#0e1526);">
+              <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:2px;color:#00f0ff;">VISIONEYE</h1>
+              <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;letter-spacing:0.5px;">REAL-TIME AI INTELLIGENCE</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 24px;text-align:center;">
+              <p style="margin:0 0 16px;font-size:14px;color:#cbd5e1;">Your single-use verification passcode is:</p>
+              <div style="display:inline-block;background:#070a11;border:2px solid #00f0ff;border-radius:12px;padding:14px 28px;font-size:32px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800;letter-spacing:8px;color:#00f0ff;">
+                {otp}
+              </div>
+              <p style="margin:20px 0 0;font-size:12px;color:#64748b;">
+                Valid for <strong style="color:#94a3b8;">5 minutes</strong>. Never share this code with anyone.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px;text-align:center;background:#0a0e1a;border-top:1px solid #1e293b;font-size:11px;color:#475569;">
+              VisionEye Platform • Requested for {email}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "VisionEye <pvsaketh1@gmail.com>")
+        host, port, user, smtp_password = _get_smtp_credentials()
 
         email_sent = False
-        smtp_password = getattr(settings, "EMAIL_HOST_PASSWORD", "")
+        smtp_error = None
 
         if smtp_password:
             try:
-                send_mail(
-                    subject=subject,
-                    message=body,
-                    from_email=from_email,
-                    recipient_list=[email],
-                    fail_silently=False,
+                from django.core.mail import get_connection, EmailMultiAlternatives
+                connection = get_connection(
+                    backend="django.core.mail.backends.smtp.EmailBackend",
+                    host=host,
+                    port=port,
+                    username=user,
+                    password=smtp_password,
+                    use_tls=True,
+                    timeout=10,
                 )
+                msg = EmailMultiAlternatives(
+                    subject=subject,
+                    body=text_body,
+                    from_email=from_email,
+                    to=[email],
+                    connection=connection,
+                )
+                msg.attach_alternative(html_body, "text/html")
+                msg.send(fail_silently=False)
                 email_sent = True
-                logger.info(f"Successfully sent OTP email to {email}")
+                logger.info(f"Successfully sent OTP email via SMTP to {email}")
             except Exception as e:
+                smtp_error = str(e)
                 logger.error(f"Failed to send email via SMTP to {email}: {e}")
+        else:
+            smtp_error = "SMTP password is not configured on the server."
+            logger.warning(f"[AUTH] Cannot send email to {email}: SMTP password missing.")
 
         if not email_sent:
-            # Fallback for dev / staging before SMTP password is populated in .env
-            logger.info(f"[AUTH DEV LOG] Generated OTP for {email}: {otp}")
+            return Response(
+                {
+                    "error": (
+                        f"Failed to send verification code to {email}. "
+                        "Server email configuration (SMTP App Password) is required."
+                    ),
+                    "details": smtp_error,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
-        resp_data = {
-            "status": "sent",
-            "message": f"Verification code sent to {email}",
-            "expires_in": 300,
-        }
-
-        # If in debug mode or SMTP not configured, include dev notice
-        if getattr(settings, "DEBUG", False) and not smtp_password:
-            resp_data["dev_code"] = otp
-
-        return Response(resp_data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "status": "sent",
+                "email": email,
+                "message": f"Verification code sent to {email}. Please check your inbox and spam folder.",
+                "expires_in": 300,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class VerifyOTPView(APIView):

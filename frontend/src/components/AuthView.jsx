@@ -9,7 +9,6 @@ export default function AuthView({ onAuthenticated }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [devCode, setDevCode] = useState('');
 
   // Cooldown countdown timer
   useEffect(() => {
@@ -37,14 +36,12 @@ export default function AuthView({ onAuthenticated }) {
     setLoading(true);
     setError('');
     try {
-      const res = await sendOTP(email);
+      await sendOTP(email);
       setStep('otp');
       setResendCooldown(30);
-      if (res.dev_code) {
-        setDevCode(res.dev_code);
-      }
+      setOtp('');
     } catch (err) {
-      setError(err.message || 'Failed to send verification code.');
+      setError(err.message || 'Failed to send verification code to your email.');
     } finally {
       setLoading(false);
     }
@@ -199,23 +196,28 @@ export default function AuthView({ onAuthenticated }) {
         {/* Step 2: 6-Digit OTP Verification */}
         {step === 'otp' && (
           <form onSubmit={handleVerifyOTP} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              We sent a 6-digit code to <strong style={{ color: '#FFF' }}>{maskEmail(email)}</strong> from <strong style={{ color: 'var(--accent-cyan)' }}>pvsaketh1@gmail.com</strong>
-            </div>
-
-            {devCode && (
-              <div style={{
-                background: 'rgba(0, 240, 255, 0.08)',
-                border: '1px dashed var(--accent-cyan)',
-                borderRadius: '8px',
-                padding: '0.5rem',
-                fontSize: '0.78rem',
-                color: 'var(--accent-cyan)',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                Development Code: <strong>{devCode}</strong>
+            <div style={{
+              background: 'rgba(0, 240, 255, 0.08)',
+              border: '1px solid rgba(0, 240, 255, 0.25)',
+              borderRadius: '10px',
+              padding: '0.85rem 1rem',
+              fontSize: '0.84rem',
+              color: '#E2E8F0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              textAlign: 'left',
+            }}>
+              <Mail size={22} style={{ color: 'var(--accent-cyan)', flexShrink: 0 }} />
+              <div>
+                <div style={{ fontWeight: 600, color: '#FFF' }}>
+                  Verification code sent to {maskEmail(email)}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Please check your inbox (and Spam folder) for your 6-digit code.
+                </div>
               </div>
-            )}
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
               <input
