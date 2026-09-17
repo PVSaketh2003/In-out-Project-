@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Play, Pause, Upload, Camera, Radio, Shield, Sliders,
-  RefreshCw, SlidersHorizontal, EyeOff, Layers, CheckCircle2, Zap, Video, Film, ArrowLeftRight
+  Play, Pause, Upload, Camera, Sliders,
+  RefreshCw, SlidersHorizontal, Layers, CheckCircle2, Zap, Film,
+  ArrowLeftRight, Cpu, UserCheck, UserMinus, Activity
 } from 'lucide-react';
 import {
   startVideoSource, controlVideo, uploadVideoFile,
@@ -18,7 +19,7 @@ export default function ControlsPanel({
 }) {
   const [sourceType, setSourceType] = useState('synthetic');
   const [uploading, setUploading] = useState(false);
-  const [rtspUrl, setRtspUrl] = useState('rtsp://127.0.0.1:8554/live');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [confThreshold, setConfThreshold] = useState(0.40);
   const [privacyMode, setPrivacyMode] = useState('none');
   const [statusMessage, setStatusMessage] = useState('');
@@ -42,7 +43,7 @@ export default function ControlsPanel({
 
   const showNotification = (msg) => {
     setStatusMessage(msg);
-    setTimeout(() => setStatusMessage(''), 3000);
+    setTimeout(() => setStatusMessage(''), 3500);
   };
 
   // Switch video input source
@@ -57,11 +58,8 @@ export default function ControlsPanel({
       } else if (type === 'synthetic') {
         window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
         await startVideoSource('synthetic');
-        showNotification('🎥 Switched to Facility Demo Stream');
-      } else if (type === 'rtsp') {
-        window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
-        await startVideoSource('rtsp', rtspUrl);
-        showNotification('Connecting to RTSP stream...');
+        showNotification('🎬 Demo Stream active (YOLO26n tracking)');
+        logError('Source', 'Switched to synthetic demo stream', '');
       }
       setTimeout(() => window.dispatchEvent(new CustomEvent('visioneye:stream_reload')), 200);
     } catch (err) {
@@ -69,43 +67,41 @@ export default function ControlsPanel({
     }
   };
 
-  // Video Upload Handler - Instant Playback Architecture (macOS, iOS, Android, Windows, Linux)
+  // Video Upload Handler
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Universal format support for mobile & desktop
     const isVideo =
       file.type?.startsWith('video/') ||
       file.name?.match(/\.(mp4|mov|avi|mkv|webm|m4v|3gp|flv|ts|ogg|ogv)$/i) ||
-      !file.type; // Some mobile file pickers return empty MIME type
+      !file.type;
 
     if (!isVideo) {
       showNotification('❌ Please choose a video file (MP4, MOV, WebM, AVI, etc.)');
       return;
     }
 
-    // Step 1: Instantly dispatch to VideoPlayer for local hardware-accelerated playback
+    // Step 1: Immediately dispatch to VideoPlayer for local preview while uploading
     window.dispatchEvent(new CustomEvent('visioneye:video_selected', { detail: { file } }));
     window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
     setSourceType('file');
-    showNotification(`▶ Playing locally: ${file.name}`);
-
-    // Step 2: Upload to backend in background without blocking local playback
     setUploading(true);
+    setUploadProgress(0);
+    showNotification(`⚡ Uploading ${file.name} to YOLO26n AI pipeline...`);
+
+    // Step 2: Upload to backend with real-time percentage progress
     try {
-      await uploadVideoFile(file);
-      showNotification(`✓ AI Processing started for ${file.name}`);
-      // Step 3: Allow backend 1.5s to initialize inference stream, then switch to AI MJPEG stream
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('visioneye:stream_ready'));
-      }, 1500);
+      await uploadVideoFile(file, (pct) => setUploadProgress(pct));
+      showNotification(`✓ YOLO26n AI Tracking active for ${file.name}!`);
+      // Step 3: Switch to the live AI Detection stream
+      window.dispatchEvent(new CustomEvent('visioneye:stream_ready'));
     } catch (err) {
       console.warn('[ControlsPanel] Background upload failed:', err);
-      showNotification(`⚠️ AI sync issue (${err.message}) — continuing local preview`);
-      // Keep playing local preview cleanly
+      showNotification(`⚠️ Upload error (${err.message}) — continuing local preview`);
     } finally {
       setUploading(false);
+      setUploadProgress(0);
       e.target.value = '';
     }
   };
@@ -127,6 +123,12 @@ export default function ControlsPanel({
     showNotification('✓ Counters reset to 0');
   };
 
+  // Reset Tracks
+  const handleResetTracking = async () => {
+    await resetTracking();
+    showNotification('✓ Track IDs reset');
+  };
+
   // Swap IN / OUT Line
   const handleFlipLine = () => {
     const line = telemetry?.counting_line;
@@ -138,11 +140,32 @@ export default function ControlsPanel({
     showNotification('Swapped IN / OUT Flow Direction');
   };
 
-  // Confidence slider change
+  // Preset Application
+  const handleApplyPreset = async (preset) => {
+    try {
+      await applyPerspectivePreset(preset);
+      showNotification(`Applied preset: ${preset.toUpperCase()}`);
+    } catch (err) {
+      showNotification(`Failed to apply preset: ${err.message}`);
+    }
+  };
+
+  // Auto Calibrate Floor
+  const handleAutoCalibrate = async () => {
+    try {
+      await autoCalibrateFloor();
+      showNotification('⚡ Auto-calibrated floor geometry (1-click)');
+    } catch (err) {
+      showNotification(`Auto-calibrate error: ${err.message}`);
+    }
+  };
+
+  // Confidence Threshold Change
   const handleConfidenceChange = (e) => {
     const val = parseFloat(e.target.value);
     setConfThreshold(val);
     wsService.send('set_confidence', { value: val });
+    updateConfig({ confidence_threshold: val }).catch(console.error);
   };
 
   // Privacy Mode Toggle
@@ -155,17 +178,24 @@ export default function ControlsPanel({
     showNotification(`Privacy Mode: ${mode.toUpperCase()}`);
   };
 
+  const recentEvents = telemetry?.recent_events || [];
+
   return (
-    <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
       {/* Title & Status Message */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.05em' }}>
           <SlidersHorizontal size={16} style={{ color: 'var(--accent-cyan)' }} />
           <span>VIDEO SOURCE & CONTROLS</span>
         </div>
-        {statusMessage && (
+        {statusMessage ? (
           <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
             {statusMessage}
+          </span>
+        ) : (
+          <span style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+            <Cpu size={12} />
+            <span>YOLO26n ONNX</span>
           </span>
         )}
       </div>
@@ -204,12 +234,16 @@ export default function ControlsPanel({
       {sourceType === 'file' && (
         <div style={{
           background: 'rgba(0, 240, 255, 0.04)', border: '1px dashed rgba(0, 240, 255, 0.3)',
-          borderRadius: '12px', padding: '1.25rem', display: 'flex', flexDirection: 'column',
+          borderRadius: '12px', padding: '1.15rem', display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textAlign: 'center'
         }}>
           <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '0.7rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px' }}>
             <Upload size={16} />
-            <span>{uploading ? '⚡ Syncing AI in background...' : 'Choose Video (MP4, MOV, WebM)'}</span>
+            <span>
+              {uploading
+                ? `⚡ Uploading to AI: ${uploadProgress}%...`
+                : 'Choose Video (MP4, MOV, WebM)'}
+            </span>
             <input
               type="file"
               accept="video/*,video/mp4,video/quicktime,video/mov,video/webm,video/x-m4v,video/mkv,video/avi"
@@ -218,8 +252,19 @@ export default function ControlsPanel({
             />
           </label>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Instant playback on Mac, iOS, Android, Windows & Linux • Up to 500 MB
+            Instant playback • Up to 500 MB • Real-time YOLO26n tracking
           </span>
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('visioneye:stream_ready'))}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', color: 'var(--accent-cyan)', borderColor: 'var(--accent-cyan)' }}
+              title="Switch to live AI Detection stream"
+            >
+              🧠 Show AI Stream (Boxes & Line)
+            </button>
+          </div>
         </div>
       )}
 
@@ -236,28 +281,242 @@ export default function ControlsPanel({
         </div>
       )}
 
-      {/* 3. Playback & Counting Actions */}
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <button onClick={() => handleControl('resume')} className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem' }} title="Resume Stream">
-          <Play size={14} style={{ color: 'var(--accent-emerald)' }} />
+      {/* 3. IN/OUT Counting Line & Geometry Calibration (Restored & Enhanced) */}
+      <div style={{
+        background: calibrationMode === 'line' ? 'rgba(0, 240, 255, 0.12)' : calibrationMode === 'perspective' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(13, 19, 33, 0.7)',
+        border: calibrationMode === 'line' ? '1px solid var(--accent-cyan)' : calibrationMode === 'perspective' ? '1px solid var(--accent-emerald)' : '1px solid var(--border-subtle)',
+        borderRadius: '12px',
+        padding: '0.9rem 1rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.65rem',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <SlidersHorizontal size={15} style={{ color: 'var(--accent-cyan)' }} />
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#FFF' }}>
+              IN / OUT COUNTING LINE & CALIBRATION
+            </span>
+          </div>
+          <span style={{ fontSize: '0.72rem', color: calibrationMode === 'line' ? 'var(--accent-cyan)' : calibrationMode === 'perspective' ? 'var(--accent-emerald)' : 'var(--text-muted)', fontWeight: 600 }}>
+            {calibrationMode === 'line' ? '● Dragging Line' : calibrationMode === 'perspective' ? '● 4 Corners' : 'Real-Time (0 ms)'}
+          </span>
+        </div>
+
+        {/* Status Callout when in active calibration mode */}
+        {calibrationMode === 'line' && (
+          <div style={{
+            fontSize: '0.73rem',
+            color: '#00F0FF',
+            background: 'rgba(0, 240, 255, 0.15)',
+            padding: '0.5rem 0.65rem',
+            borderRadius: '6px',
+            border: '1px solid rgba(0, 240, 255, 0.4)',
+            lineHeight: 1.4,
+          }}>
+            🟢 <strong>Line Calibration Active:</strong> Drag handles <strong>A</strong> or <strong>B</strong> directly on the video across the doorway or path. Click <strong>✓ Save Line Position</strong> when done.
+          </div>
+        )}
+
+        {calibrationMode === 'perspective' && (
+          <div style={{
+            fontSize: '0.73rem',
+            color: '#10B981',
+            background: 'rgba(16, 185, 129, 0.15)',
+            padding: '0.5rem 0.65rem',
+            borderRadius: '6px',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            lineHeight: 1.4,
+          }}>
+            🟢 <strong>4-Corner Homography Active:</strong> Drag the 4 corner pins on the video stream to align perspective floor geometry.
+          </div>
+        )}
+
+        {/* Main Calibration Buttons */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem' }}>
+          <button
+            onClick={() => onSetCalibrationMode && onSetCalibrationMode(calibrationMode === 'line' ? null : 'line')}
+            className={`btn ${calibrationMode === 'line' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              padding: '0.55rem 0.5rem',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              background: calibrationMode === 'line' ? '#00F0FF' : undefined,
+              color: calibrationMode === 'line' ? '#070B13' : undefined,
+            }}
+          >
+            {calibrationMode === 'line' ? <CheckCircle2 size={14} /> : <Sliders size={13} />}
+            <span>{calibrationMode === 'line' ? '✓ Save Line Position' : '📏 Adjust Counting Line'}</span>
+          </button>
+
+          <button
+            onClick={handleFlipLine}
+            className="btn btn-secondary"
+            style={{ padding: '0.55rem 0.4rem', fontSize: '0.78rem' }}
+            title="Swap Point A and Point B so IN becomes OUT and OUT becomes IN"
+          >
+            <ArrowLeftRight size={13} style={{ marginRight: '4px', color: 'var(--accent-amber)' }} />
+            Flip IN/OUT
+          </button>
+        </div>
+
+        {/* Secondary Calibration Modes */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
+          <button
+            onClick={() => onSetCalibrationMode && onSetCalibrationMode(calibrationMode === 'perspective' ? null : 'perspective')}
+            className={`btn ${calibrationMode === 'perspective' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              padding: '0.45rem',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              background: calibrationMode === 'perspective' ? '#10B981' : undefined,
+              color: calibrationMode === 'perspective' ? '#06281E' : undefined,
+            }}
+          >
+            <Layers size={13} />
+            <span>{calibrationMode === 'perspective' ? '✓ Finish Corners' : 'Calibrate 4 Corners'}</span>
+          </button>
+
+          <button
+            onClick={handleAutoCalibrate}
+            className="btn btn-secondary"
+            style={{
+              padding: '0.45rem',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: 'var(--accent-cyan)',
+              background: 'rgba(0, 240, 255, 0.08)',
+            }}
+            title="Instantly auto-calibrate ground floor perspective"
+          >
+            <Zap size={13} style={{ color: 'var(--accent-cyan)' }} />
+            <span>Auto Floor</span>
+          </button>
+        </div>
+
+        {/* Camera Angle Presets */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.1rem' }}>
+          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Camera Angle Presets:</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.3rem' }}>
+            <button
+              onClick={() => handleApplyPreset('corridor')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
+              title="Corridor / Hallway view"
+            >
+              Corridor
+            </button>
+            <button
+              onClick={() => handleApplyPreset('entrance')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
+              title="Entrance doorway / Gate view"
+            >
+              Entrance
+            </button>
+            <button
+              onClick={() => handleApplyPreset('floor')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
+              title="Wide facility floor"
+            >
+              Floor
+            </button>
+            <button
+              onClick={() => handleApplyPreset('default')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
+              title="Reset to default geometry"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Playback & Reset Actions */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
+        <button onClick={() => handleControl('resume')} className="btn btn-secondary" style={{ padding: '0.5rem 0.2rem', fontSize: '0.75rem' }} title="Resume Stream">
+          <Play size={13} style={{ color: 'var(--accent-emerald)' }} />
           <span>Resume</span>
         </button>
-        <button onClick={() => handleControl('pause')} className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem' }} title="Pause Stream">
-          <Pause size={14} style={{ color: 'var(--accent-amber)' }} />
+        <button onClick={() => handleControl('pause')} className="btn btn-secondary" style={{ padding: '0.5rem 0.2rem', fontSize: '0.75rem' }} title="Pause Stream">
+          <Pause size={13} style={{ color: 'var(--accent-amber)' }} />
           <span>Pause</span>
         </button>
-        <button onClick={handleFlipLine} className="btn btn-secondary" style={{ flex: 1.2, padding: '0.5rem' }} title="Swap IN and OUT counting direction">
-          <ArrowLeftRight size={14} style={{ color: 'var(--accent-cyan)' }} />
-          <span>Flip IN/OUT</span>
-        </button>
-        <button onClick={handleResetAnalytics} className="btn btn-secondary" style={{ flex: 1, padding: '0.5rem', borderColor: 'rgba(244,63,94,0.3)', color: '#F43F5E' }} title="Reset counters">
-          <RefreshCw size={14} />
+        <button onClick={handleResetAnalytics} className="btn btn-secondary" style={{ padding: '0.5rem 0.2rem', fontSize: '0.75rem', borderColor: 'rgba(244,63,94,0.3)', color: '#F43F5E' }} title="Reset counts to 0">
+          <RefreshCw size={13} />
           <span>Reset 0</span>
+        </button>
+        <button onClick={handleResetTracking} className="btn btn-secondary" style={{ padding: '0.5rem 0.2rem', fontSize: '0.75rem' }} title="Reset tracking IDs">
+          <RefreshCw size={13} />
+          <span>Tracks</span>
         </button>
       </div>
 
-      {/* 4. Confidence Threshold Slider */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+      {/* 5. Live Foot-Traffic Activity Feed (People In / Out) */}
+      <div style={{
+        background: 'rgba(7, 10, 19, 0.75)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: '10px',
+        padding: '0.75rem 0.85rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.45rem',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Activity size={14} style={{ color: 'var(--accent-cyan)' }} />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#FFF' }}>
+              PEOPLE IN / OUT LOG
+            </span>
+          </div>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+            IN: {telemetry?.total_in ?? 0} | OUT: {telemetry?.total_out ?? 0}
+          </span>
+        </div>
+
+        {recentEvents && recentEvents.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '120px', overflowY: 'auto' }}>
+            {recentEvents.slice(0, 5).map((evt, idx) => (
+              <div
+                key={evt.id || idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: evt.direction === 'IN' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
+                  border: `1px solid ${evt.direction === 'IN' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+                  borderRadius: '6px',
+                  padding: '0.3rem 0.55rem',
+                  fontSize: '0.72rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {evt.direction === 'IN' ? (
+                    <UserCheck size={13} style={{ color: '#10B981' }} />
+                  ) : (
+                    <UserMinus size={13} style={{ color: '#F43F5E' }} />
+                  )}
+                  <span style={{ fontWeight: 700, color: evt.direction === 'IN' ? '#10B981' : '#F43F5E' }}>
+                    Person #{evt.track_id} {evt.direction === 'IN' ? 'ENTERED IN' : 'EXITED OUT'}
+                  </span>
+                </div>
+                <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.68rem' }}>
+                  {evt.time_str || new Date(evt.timestamp * 1000).toLocaleTimeString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textAlign: 'center', padding: '0.4rem' }}>
+            Awaiting line crossings… Walk across the counting line to increment!
+          </div>
+        )}
+      </div>
+
+      {/* 6. Confidence Threshold Slider */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
           <span className="slider-label" style={{ color: 'var(--text-muted)' }}>DETECTION CONFIDENCE</span>
           <span style={{ color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
@@ -275,8 +534,8 @@ export default function ControlsPanel({
         />
       </div>
 
-      {/* 5. Privacy Mode Selector */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+      {/* 7. Privacy Mode Selector */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
         <span className="slider-label" style={{ color: 'var(--text-muted)' }}>PRIVACY PROTECTION</span>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
           {['none', 'blur', 'pixelate', 'blackout'].map((mode) => (

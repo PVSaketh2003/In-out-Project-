@@ -72,24 +72,39 @@ export async function controlVideo(action) {
   }
 }
 
-export async function uploadVideoFile(file) {
-  try {
+export function uploadVideoFile(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
     const formData = new FormData();
     formData.append('video', file);
     formData.append('file', file);
-    const res = await fetch(`${API_BASE}/video/upload`, {
-      method: 'POST',
-      body: formData,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.status === 'error' || data.error) {
-      throw new Error(data.error || data.message || `Upload failed with status HTTP ${res.status}`);
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct);
+        }
+      };
     }
-    return data;
-  } catch (err) {
-    console.error('uploadVideoFile error:', err);
-    throw err;
-  }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data);
+        } catch (e) {
+          resolve({ status: 'ok' });
+        }
+      } else {
+        reject(new Error(`Upload failed with status HTTP ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.open('POST', `${API_BASE}/video/upload`);
+    xhr.send(formData);
+  });
 }
 
 export async function fetchConfig() {

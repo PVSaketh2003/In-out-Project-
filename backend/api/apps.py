@@ -13,7 +13,7 @@ logger = logging.getLogger("visioneye.apps")
 _pipeline_instance = None
 
 
-def get_pipeline(auto_start: bool = False):
+def get_pipeline(auto_start: bool = True):
     """Returns global VisionPipeline singleton."""
     global _pipeline_instance
     if _pipeline_instance is None:
@@ -43,6 +43,8 @@ def get_pipeline(auto_start: bool = False):
         if auto_start:
             _pipeline_instance.start(source_type="synthetic")
         logger.info("[VisionEye] Pipeline initialized.")
+    elif auto_start and not _pipeline_instance.video_source.is_running:
+        _pipeline_instance.start(source_type=_pipeline_instance.video_source.source_type or "synthetic")
 
     return _pipeline_instance
 
@@ -54,9 +56,13 @@ class ApiConfig(AppConfig):
     def ready(self):
         """Initializes pipeline when Django ASGI starts."""
         import sys
-        is_server = any(cmd in sys.argv for cmd in ["daphne", "runserver", "uvicorn", "gunicorn"])
-        if is_server:
-            get_pipeline(auto_start=True)
+        # Matches "daphne", "/usr/local/bin/daphne", "runserver", "uvicorn", etc.
+        is_management = any(cmd in sys.argv for cmd in ["makemigrations", "migrate", "test", "collectstatic", "createsuperuser"])
+        if not is_management:
+            try:
+                get_pipeline(auto_start=True)
+            except Exception as e:
+                logger.warning(f"[VisionEye] Pipeline auto-start deferred: {e}")
 
         atexit.register(self._cleanup)
 

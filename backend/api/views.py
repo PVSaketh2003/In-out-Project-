@@ -331,7 +331,9 @@ async def video_feed_stream(request):
     High-performance async MJPEG video streaming view for Daphne ASGI.
     GET /api/video/feed
     """
-    pipeline = get_pipeline()
+    pipeline = get_pipeline(auto_start=True)
+    if not pipeline.video_source.is_running:
+        pipeline.start(source_type=pipeline.video_source.source_type or "synthetic")
 
     async def frame_generator():
         while True:

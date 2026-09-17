@@ -280,7 +280,13 @@ export default function VideoPlayer({
     }
   }, []);
 
+  const lastConnectTimeRef = useRef(0);
   const connectMjpegStream = useCallback(() => {
+    const now = Date.now();
+    if (now - lastConnectTimeRef.current < 1000) {
+      return;
+    }
+    lastConnectTimeRef.current = now;
     const img = mjpegImgRef.current;
     if (!img) return;
     clearMjpegRetry();
@@ -368,15 +374,14 @@ export default function VideoPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayMode, playLocalFile, reloadStream, switchToStream]);
 
-  // ── Telemetry source change → reload stream if in stream mode ────────────
+  // ── Telemetry source change → reload stream only on actual source change ──
   const prevSourceRef = useRef(null);
   useEffect(() => {
-    const current = `${telemetry?.source?.source_type}|${telemetry?.source?.source_path}`;
-    if (
-      prevSourceRef.current !== null &&
-      prevSourceRef.current !== current &&
-      displayMode === 'stream'
-    ) {
+    const sType = telemetry?.source?.source_type;
+    const sPath = telemetry?.source?.source_path;
+    if (!sType) return;
+    const current = `${sType}|${sPath || ''}`;
+    if (prevSourceRef.current && prevSourceRef.current !== current && displayMode === 'stream') {
       reloadStream();
     }
     prevSourceRef.current = current;
@@ -599,88 +604,97 @@ export default function VideoPlayer({
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    if (calibrationMode === 'line') {
-      const line = localLine || telemetry?.counting_line;
-      if (!line) return;
-      const sx = line.start[0] * w,
-        sy = line.start[1] * h,
-        ex = line.end[0] * w,
-        ey = line.end[1] * h;
-      const mx = (sx + ex) / 2,
-        my = (sy + ey) / 2;
-      const dx = ex - sx,
-        dy = ey - sy,
-        len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len,
-        ny = dx / len,
-        arrowDist = 50;
-      const inX = mx + nx * arrowDist,
-        inY = my + ny * arrowDist;
-      const outX = mx - nx * arrowDist,
-        outY = my - ny * arrowDist;
+    // Draw Counting Line whenever active or in calibration mode
+    if (calibrationMode === 'line' || displayMode === 'local') {
+      const line = localLine || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
+      if (line) {
+        const sx = line.start[0] * w,
+          sy = line.start[1] * h,
+          ex = line.end[0] * w,
+          ey = line.end[1] * h;
+        const mx = (sx + ex) / 2,
+          my = (sy + ey) / 2;
+        const dx = ex - sx,
+          dy = ey - sy,
+          len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len,
+          ny = dx / len,
+          arrowDist = 45;
+        const inX = mx + nx * arrowDist,
+          inY = my + ny * arrowDist;
+        const outX = mx - nx * arrowDist,
+          outY = my - ny * arrowDist;
 
-      ctx.strokeStyle = '#10B981';
-      ctx.fillStyle = '#10B981';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(mx, my);
-      ctx.lineTo(inX, inY);
-      ctx.stroke();
-      ctx.font = 'bold 12px Inter,sans-serif';
-      ctx.fillStyle = '#06281E';
-      ctx.fillRect(inX - 80, inY - 12, 160, 24);
-      ctx.strokeStyle = '#10B981';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(inX - 80, inY - 12, 160, 24);
-      ctx.fillStyle = '#10B981';
-      ctx.textAlign = 'center';
-      ctx.fillText('▲ IN (ENTERING)', inX, inY + 4);
-
-      ctx.strokeStyle = '#F43F5E';
-      ctx.fillStyle = '#F43F5E';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(mx, my);
-      ctx.lineTo(outX, outY);
-      ctx.stroke();
-      ctx.fillStyle = '#2D0A14';
-      ctx.fillRect(outX - 80, outY - 12, 160, 24);
-      ctx.strokeStyle = '#F43F5E';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(outX - 80, outY - 12, 160, 24);
-      ctx.fillStyle = '#F43F5E';
-      ctx.fillText('▼ OUT (EXITING)', outX, outY + 4);
-      ctx.textAlign = 'left';
-
-      ctx.strokeStyle = 'rgba(0,240,255,0.4)';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-      ctx.strokeStyle = '#00F0FF';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-
-      [
-        [sx, sy, 'A'],
-        [ex, ey, 'B'],
-      ].forEach(([px, py, lbl]) => {
-        ctx.fillStyle = '#00F0FF';
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
+        // IN direction arrow & badge
+        ctx.strokeStyle = '#10B981';
+        ctx.fillStyle = '#10B981';
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(px, py, 12, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(mx, my);
+        ctx.lineTo(inX, inY);
         ctx.stroke();
-        ctx.fillStyle = '#070B13';
-        ctx.font = 'bold 11px JetBrains Mono,monospace';
-        ctx.fillText(lbl, px - 3.5, py + 3.5);
-      });
-    } else if (calibrationMode === 'perspective') {
+        ctx.font = 'bold 11px Inter,sans-serif';
+        ctx.fillStyle = '#06281E';
+        ctx.fillRect(inX - 70, inY - 11, 140, 22);
+        ctx.strokeStyle = '#10B981';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(inX - 70, inY - 11, 140, 22);
+        ctx.fillStyle = '#10B981';
+        ctx.textAlign = 'center';
+        ctx.fillText('▲ IN (ENTERING)', inX, inY + 4);
+
+        // OUT direction arrow & badge
+        ctx.strokeStyle = '#F43F5E';
+        ctx.fillStyle = '#F43F5E';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(mx, my);
+        ctx.lineTo(outX, outY);
+        ctx.stroke();
+        ctx.fillStyle = '#2D0A14';
+        ctx.fillRect(outX - 70, outY - 11, 140, 22);
+        ctx.strokeStyle = '#F43F5E';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(outX - 70, outY - 11, 140, 22);
+        ctx.fillStyle = '#F43F5E';
+        ctx.fillText('▼ OUT (EXITING)', outX, outY + 4);
+        ctx.textAlign = 'left';
+
+        // Main Virtual Counting Line
+        ctx.strokeStyle = 'rgba(0,240,255,0.35)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+        ctx.strokeStyle = '#00F0FF';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+
+        // End Handle Markers (A and B)
+        const isEditing = calibrationMode === 'line';
+        [
+          [sx, sy, 'A'],
+          [ex, ey, 'B'],
+        ].forEach(([px, py, lbl]) => {
+          ctx.fillStyle = isEditing ? '#00F0FF' : 'rgba(0,240,255,0.85)';
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = isEditing ? 3 : 2;
+          ctx.beginPath();
+          ctx.arc(px, py, isEditing ? 14 : 9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#070B13';
+          ctx.font = `bold ${isEditing ? '11px' : '9px'} JetBrains Mono,monospace`;
+          ctx.fillText(lbl, px - 3.5, py + 3.5);
+        });
+      }
+    }
+
+    if (calibrationMode === 'perspective') {
       const pts = localPoints || telemetry?.perspective_points;
       if (!pts || pts.length !== 4) return;
       const pxPts = pts.map((p) => [p[0] * w, p[1] * h]);
@@ -719,7 +733,7 @@ export default function VideoPlayer({
         ctx.fillText(lbl, px + 18, py + 4);
       });
     }
-  }, [calibrationMode, localLine, localPoints, telemetry]);
+  }, [calibrationMode, displayMode, localLine, localPoints, telemetry]);
 
   // ── Canvas size from telemetry resolution ─────────────────────────────────
   const resParts = (telemetry?.resolution || '1280x720').split('x');
@@ -914,6 +928,8 @@ export default function VideoPlayer({
             width: '100%',
             height: '100%',
             pointerEvents: calibrationMode ? 'auto' : 'none',
+            touchAction: calibrationMode ? 'none' : 'auto',
+            cursor: calibrationMode ? 'crosshair' : 'default',
           }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -980,29 +996,54 @@ export default function VideoPlayer({
             )}
           </div>
 
-          {/* Right: metrics + calibration save */}
+          {/* Right: view mode, line adjust, and metrics */}
           <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', pointerEvents: 'auto' }}>
+            {/* View Mode Switcher */}
+            <button
+              onClick={() => {
+                if (displayMode === 'stream') {
+                  setDisplayMode('local');
+                } else {
+                  switchToStream();
+                }
+              }}
+              className="btn btn-secondary"
+              style={{
+                padding: '0.22rem 0.65rem',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                background: displayMode === 'stream' ? 'rgba(0,240,255,0.18)' : 'rgba(245,158,11,0.18)',
+                borderColor: displayMode === 'stream' ? '#00F0FF' : '#F59E0B',
+                color: displayMode === 'stream' ? '#00F0FF' : '#F59E0B',
+                pointerEvents: 'auto',
+              }}
+              title="Switch between live YOLO26n AI Detection and Raw Local Video"
+            >
+              {displayMode === 'stream' ? '🧠 AI Stream' : '⚡ Local Preview'}
+            </button>
+
+            {/* Quick Line Adjust Button */}
+            <button
+              onClick={() => onSetCalibrationMode(calibrationMode === 'line' ? null : 'line')}
+              className={`btn ${calibrationMode === 'line' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{
+                padding: '0.22rem 0.65rem',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                pointerEvents: 'auto',
+                borderColor: 'var(--accent-cyan)',
+                color: calibrationMode === 'line' ? '#000' : 'var(--accent-cyan)',
+              }}
+              title="Adjust counting line position on screen"
+            >
+              {calibrationMode === 'line' ? '✓ Save Line' : '📏 Adjust Line'}
+            </button>
+
             {/* Metrics rendered as memo component — won't cause video re-renders */}
             <MetricsHUD
               telemetry={telemetry}
               isLocalMode={displayMode === 'local'}
             />
-
-            {calibrationMode && (
-              <button
-                onClick={() => onSetCalibrationMode(null)}
-                className="btn btn-primary"
-                style={{
-                  padding: '0.25rem 0.65rem',
-                  fontSize: '0.72rem',
-                  background: '#10B981',
-                  color: '#000',
-                  fontWeight: 700,
-                }}
-              >
-                <CheckCircle2 size={12} /> Save
-              </button>
-            )}
           </div>
         </div>
       </div>
