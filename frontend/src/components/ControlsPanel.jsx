@@ -69,33 +69,41 @@ export default function ControlsPanel({
     }
   };
 
-  // Video Upload Handler
+  // Video Upload Handler - Instant Playback Architecture (macOS, iOS, Android, Windows, Linux)
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Mobile and desktop friendly format check
-    const isVideo = file.type?.startsWith('video/') ||
-      file.name?.match(/\.(mp4|mov|avi|mkv|webm|m4v|3gp|flv|ts)$/i) ||
-      !file.type;
+    // Universal format support for mobile & desktop
+    const isVideo =
+      file.type?.startsWith('video/') ||
+      file.name?.match(/\.(mp4|mov|avi|mkv|webm|m4v|3gp|flv|ts|ogg|ogv)$/i) ||
+      !file.type; // Some mobile file pickers return empty MIME type
 
     if (!isVideo) {
-      showNotification('❌ Please choose a video file (MP4, MOV, AVI, etc.)');
+      showNotification('❌ Please choose a video file (MP4, MOV, WebM, AVI, etc.)');
       return;
     }
 
+    // Step 1: Instantly dispatch to VideoPlayer for local hardware-accelerated playback
+    window.dispatchEvent(new CustomEvent('visioneye:video_selected', { detail: { file } }));
+    window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
+    setSourceType('file');
+    showNotification(`▶ Playing locally: ${file.name}`);
+
+    // Step 2: Upload to backend in background without blocking local playback
     setUploading(true);
-    showNotification(`⚡ Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)...`);
     try {
-      window.dispatchEvent(new CustomEvent('visioneye:device_camera_toggle', { detail: { active: false } }));
-      const result = await uploadVideoFile(file);
-      setSourceType('file');
-      showNotification(`▶️ Playing: ${file.name}`);
-      // Trigger stream reload immediately
-      setTimeout(() => window.dispatchEvent(new CustomEvent('visioneye:stream_reload')), 150);
-      setTimeout(() => window.dispatchEvent(new CustomEvent('visioneye:stream_reload')), 800);
+      await uploadVideoFile(file);
+      showNotification(`✓ AI Processing started for ${file.name}`);
+      // Step 3: Allow backend 1.5s to initialize inference stream, then switch to AI MJPEG stream
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('visioneye:stream_ready'));
+      }, 1500);
     } catch (err) {
-      showNotification(`❌ Upload error: ${err.message}`);
+      console.warn('[ControlsPanel] Background upload failed:', err);
+      showNotification(`⚠️ AI sync issue (${err.message}) — continuing local preview`);
+      // Keep playing local preview cleanly
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -201,11 +209,16 @@ export default function ControlsPanel({
         }}>
           <label className="btn btn-primary" style={{ cursor: 'pointer', padding: '0.7rem 1.5rem', fontSize: '0.85rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px' }}>
             <Upload size={16} />
-            <span>{uploading ? '⚡ Uploading & Loading...' : 'Choose MP4 / MOV Video'}</span>
-            <input type="file" accept="video/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+            <span>{uploading ? '⚡ Syncing AI in background...' : 'Choose Video (MP4, MOV, WebM)'}</span>
+            <input
+              type="file"
+              accept="video/*,video/mp4,video/quicktime,video/mov,video/webm,video/x-m4v,video/mkv,video/avi"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
           </label>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Supports MP4, MOV, AVI, MKV up to 500 MB • Loops automatically with real-time AI
+            Instant playback on Mac, iOS, Android, Windows & Linux • Up to 500 MB
           </span>
         </div>
       )}

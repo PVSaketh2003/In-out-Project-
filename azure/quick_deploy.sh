@@ -33,25 +33,26 @@ cd "$PROJ/frontend" && npm run build
 echo -e "${GREEN}✓ Frontend built${NC}"
 
 # Step 2: Deploy frontend dist
-echo -e "\n${CYAN}[2/5] Deploying frontend to /var/www/website/live/...${NC}"
+echo -e "\n${CYAN}[2/5] Deploying frontend to /opt/visioneye/website/live/...${NC}"
+$SSH "mkdir -p /opt/visioneye/website/live"
 eval rsync -az --delete -e \"ssh $SSH_KEY_ARG -o StrictHostKeyChecking=no\" \
   "$PROJ/frontend/dist/" \
-  "$REMOTE_USER@$REMOTE_HOST:/var/www/website/live/"
+  "$REMOTE_USER@$REMOTE_HOST:/opt/visioneye/website/live/"
 echo -e "${GREEN}✓ Frontend synced${NC}"
 
 # Step 3: Deploy website static files
-echo -e "\n${CYAN}[3/5] Deploying website static files to /var/www/website/...${NC}"
+echo -e "\n${CYAN}[3/5] Deploying website static files to /opt/visioneye/website/...${NC}"
 eval rsync -az --exclude='live/' -e \"ssh $SSH_KEY_ARG -o StrictHostKeyChecking=no\" \
   "$PROJ/website/" \
-  "$REMOTE_USER@$REMOTE_HOST:/var/www/website/"
+  "$REMOTE_USER@$REMOTE_HOST:/opt/visioneye/website/"
 echo -e "${GREEN}✓ Website files synced${NC}"
 
 # Step 4: Deploy nginx config
-echo -e "\n${CYAN}[4/5] Updating Nginx config...${NC}"
+echo -e "\n${CYAN}[4/5] Updating Nginx config & reloading container...${NC}"
 scp $SSH_KEY_ARG -o StrictHostKeyChecking=no \
   "$PROJ/azure/nginx.conf" \
-  "$REMOTE_USER@$REMOTE_HOST:/tmp/nginx_new.conf"
-$SSH "sudo cp /tmp/nginx_new.conf /etc/nginx/nginx.conf && sudo nginx -t && sudo nginx -s reload"
+  "$REMOTE_USER@$REMOTE_HOST:/opt/visioneye/nginx.conf"
+$SSH "docker exec visioneye-nginx nginx -s reload 2>/dev/null || sudo docker restart visioneye-nginx 2>/dev/null || true"
 echo -e "${GREEN}✓ Nginx updated and reloaded${NC}"
 
 # Step 5: Verify

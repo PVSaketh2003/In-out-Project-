@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
-import AnalyticsCards from './components/AnalyticsCards';
 import VideoPlayer from './components/VideoPlayer';
 import TopViewPanel from './components/TopViewPanel';
 import ControlsPanel from './components/ControlsPanel';
@@ -11,7 +10,14 @@ import CalibrationModal from './components/CalibrationModal';
 import DownloadAppModal from './components/DownloadAppModal';
 import { wsService } from './services/websocket';
 import { fetchConfig } from './services/api';
-import { Layers, SlidersHorizontal, Activity } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  SlidersHorizontal,
+  Layers,
+  Activity,
+  BarChart3,
+} from 'lucide-react';
 
 export default function App() {
   const [telemetry, setTelemetry] = useState(null);
@@ -20,7 +26,7 @@ export default function App() {
   const [showSystemInfo, setShowSystemInfo] = useState(false);
   const [showCalibrationGuide, setShowCalibrationGuide] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [activeSideTab, setActiveSideTab] = useState('controls'); // 'controls' | 'radar' | 'events'
+  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
 
   // Connect to WebSocket on mount
   useEffect(() => {
@@ -76,79 +82,116 @@ export default function App() {
       />
 
       <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        {/* Top Analytics Metrics Grid */}
-        <AnalyticsCards telemetry={telemetry} />
-
-        {/* Main 2-Column CV Workspace Grid */}
+        {/* Main Clean Workspace: Dominant Video + Streamlined Controls */}
         <div className="dashboard-grid">
-          {/* Left Column: Live Video Feed & Timeline Charts */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Left Column: Live Video Feed + Compact KPI Strip */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             <VideoPlayer
               telemetry={telemetry}
               calibrationMode={calibrationMode}
               onSetCalibrationMode={handleSetCalibrationMode}
             />
 
-            {/* Occupancy Timeline Chart */}
-            <FlowHistoryChart telemetry={telemetry} />
-          </div>
-
-          {/* Right Column: Clean Tabbed Control Center */}
-          <div className="side-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Tab Navigation Switcher */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem',
-              background: 'rgba(10, 15, 29, 0.8)', padding: '0.3rem', borderRadius: '10px',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
-            }}>
-              <button
-                onClick={() => setActiveSideTab('controls')}
-                className={`btn ${activeSideTab === 'controls' ? 'btn-active' : 'btn-secondary'}`}
-                style={{ padding: '0.45rem 0.25rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
-              >
-                <SlidersHorizontal size={13} />
-                <span>Controls</span>
-              </button>
-
-              <button
-                onClick={() => setActiveSideTab('radar')}
-                className={`btn ${activeSideTab === 'radar' ? 'btn-active' : 'btn-secondary'}`}
-                style={{ padding: '0.45rem 0.25rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
-              >
-                <Layers size={13} />
-                <span>Radar Map</span>
-              </button>
-
-              <button
-                onClick={() => setActiveSideTab('events')}
-                className={`btn ${activeSideTab === 'events' ? 'btn-active' : 'btn-secondary'}`}
-                style={{ padding: '0.45rem 0.25rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
-              >
-                <Activity size={13} />
-                <span>Activity</span>
-              </button>
+            {/* Compact Real-Time KPI Telemetry Bar */}
+            <div className="compact-kpi-bar glass-panel" style={{ borderRadius: '12px' }}>
+              <div className="kpi-item">
+                <span className="kpi-label">Inside</span>
+                <span className="kpi-val" style={{ color: 'var(--accent-cyan)' }}>
+                  {telemetry?.occupancy ?? 0}
+                </span>
+              </div>
+              <div className="kpi-divider" />
+              <div className="kpi-item">
+                <span className="kpi-label">Total IN</span>
+                <span className="kpi-val" style={{ color: 'var(--accent-emerald)' }}>
+                  {telemetry?.total_in ?? 0}
+                </span>
+              </div>
+              <div className="kpi-divider" />
+              <div className="kpi-item">
+                <span className="kpi-label">Total OUT</span>
+                <span className="kpi-val" style={{ color: 'var(--accent-rose)' }}>
+                  {telemetry?.total_out ?? 0}
+                </span>
+              </div>
+              <div className="kpi-divider" />
+              <div className="kpi-item">
+                <span className="kpi-label">Active Tracks</span>
+                <span className="kpi-val" style={{ color: 'var(--accent-purple)' }}>
+                  {telemetry?.active_people ?? 0}
+                </span>
+              </div>
+              <div className="kpi-divider" />
+              <div className="kpi-item">
+                <span className="kpi-label">AI Processing</span>
+                <span className="kpi-val" style={{ color: 'var(--accent-amber)' }}>
+                  {telemetry?.fps ?? 0} <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>FPS</span>
+                </span>
+              </div>
+              <div className="kpi-divider" />
+              <div className="kpi-item">
+                <span className="kpi-label">Latency</span>
+                <span className="kpi-val" style={{ color: '#e2e8f0' }}>
+                  {telemetry?.detection_latency_ms ?? telemetry?.processing_latency_ms ?? 0}
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>ms</span>
+                </span>
+              </div>
             </div>
-
-            {/* Tab Content */}
-            {activeSideTab === 'controls' && (
-              <ControlsPanel
-                telemetry={telemetry}
-                calibrationMode={calibrationMode}
-                onSetCalibrationMode={handleSetCalibrationMode}
-              />
-            )}
-
-            {activeSideTab === 'radar' && (
-              <TopViewPanel
-                telemetry={telemetry}
-                onSetCalibrationMode={handleSetCalibrationMode}
-              />
-            )}
-
-            {activeSideTab === 'events' && (
-              <RecentEventsList telemetry={telemetry} />
-            )}
           </div>
+
+          {/* Right Column: Video Source & Control Center */}
+          <div className="side-panel">
+            <ControlsPanel
+              telemetry={telemetry}
+              calibrationMode={calibrationMode}
+              onSetCalibrationMode={handleSetCalibrationMode}
+            />
+          </div>
+        </div>
+
+        {/* Collapsible Advanced Section: Radar Map, Event Feed & History */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <button
+            onClick={() => setShowAdvancedTools((prev) => !prev)}
+            className="btn btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.65rem 1.25rem',
+              width: '100%',
+              borderRadius: '10px',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              background: 'rgba(13, 19, 33, 0.5)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <BarChart3 size={15} style={{ color: 'var(--accent-cyan)' }} />
+              <span>Advanced Analytics & Spatial Radar</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-muted)' }}>
+              <span>{showAdvancedTools ? 'Hide' : 'Show'}</span>
+              {showAdvancedTools ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </div>
+          </button>
+
+          {showAdvancedTools && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '0.25rem' }}>
+              {/* Timeline Chart */}
+              <FlowHistoryChart telemetry={telemetry} />
+
+              {/* 2-Column Grid: 2D Radar Floor Map & Live Event Feed */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                <TopViewPanel
+                  telemetry={telemetry}
+                  onSetCalibrationMode={handleSetCalibrationMode}
+                />
+                <RecentEventsList telemetry={telemetry} />
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
