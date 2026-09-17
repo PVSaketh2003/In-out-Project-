@@ -50,3 +50,8 @@ Thumbs.db
 *.pt
 videos/
 backend/models/yolo26s.onnx
+backend/downloads/*.dmg
+backend/downloads/*.zip
+backend/downloads/*.exe
+backend/downloads/*.AppImage
+backend/downloads/*.apk

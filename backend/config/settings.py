@@ -145,3 +145,13 @@ LOGGING = {
         },
     },
 }
+
+# SMTP Email Configuration for OTP Authentication
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("SMTP_PORT", 587))
+EMAIL_USE_TLS = os.getenv("SMTP_USE_TLS", "True").lower() in ("true", "1", "yes")
+EMAIL_HOST_USER = os.getenv("SMTP_USER", "pvsaketh1@gmail.com")
+EMAIL_HOST_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "VisionEye <pvsaketh1@gmail.com>")
+OTP_SECRET = os.getenv("OTP_SECRET", "visioneye-secure-otp-salt-secret-992148")

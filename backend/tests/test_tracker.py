@@ -8,6 +8,7 @@ from vision.tracker import ByteTrack, STrack, TrackState
 
 def test_tracker_single_track():
     tracker = ByteTrack(track_thresh=0.4, high_thresh=0.6)
+    tracker.reset()
     det1 = {
         "bbox": [100.0, 100.0, 150.0, 200.0],
         "confidence": 0.9,

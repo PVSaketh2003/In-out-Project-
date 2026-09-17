@@ -5,19 +5,17 @@ import { detectHardwareCapabilities } from '../services/hardware';
 export default function Header({
   telemetry,
   wsStatus,
-  onOpenSystemInfo,
+  currentView,
+  onChangeView,
+  userEmail,
+  onLogout,
   onOpenCalibrationGuide,
-  onOpenDownloadModal,
   onToggleFullscreen
 }) {
   const [hw, setHw] = useState(null);
-  const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
     detectHardwareCapabilities().then(setHw);
-    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
-      setIsInstalled(true);
-    }
   }, []);
 
   const fps = telemetry?.fps || 0;
@@ -26,65 +24,74 @@ export default function Header({
   return (
     <header className="header-bar">
       {/* Brand & Logo */}
-      <div className="logo-section">
+      <div className="logo-section" style={{ cursor: 'pointer' }} onClick={() => onChangeView?.('app')}>
         <div className="logo-icon-box">
-          <Eye size={22} style={{ color: 'var(--accent-cyan)' }} />
+          <Eye size={20} style={{ color: 'var(--accent-cyan)' }} />
         </div>
         <div>
-          <h1 className="brand-title">VISIONEYE</h1>
-          <div className="brand-subtitle">AI Foot-Traffic Analytics & Occupancy</div>
+          <h1 className="brand-title" style={{ fontSize: '1.1rem' }}>VISIONEYE</h1>
         </div>
       </div>
 
-      {/* Badges and Actions */}
+      {/* Navigation Tabs: Video Analytics vs Download Application */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        background: 'rgba(255, 255, 255, 0.05)',
+        padding: '0.25rem',
+        borderRadius: '10px',
+        border: '1px solid var(--border-subtle)',
+        gap: '0.25rem',
+      }}>
+        <button
+          onClick={() => onChangeView?.('app')}
+          className={`btn ${currentView === 'app' ? 'btn-active' : 'btn-secondary'}`}
+          style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem', borderRadius: '8px' }}
+        >
+          <span>Video Analytics</span>
+        </button>
+
+        <button
+          onClick={() => onChangeView?.('download')}
+          className={`btn ${currentView === 'download' ? 'btn-active' : 'btn-secondary'}`}
+          style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem', borderRadius: '8px' }}
+        >
+          <Download size={13} />
+          <span>Download App</span>
+        </button>
+      </div>
+
+      {/* Status, User & Actions */}
       <div className="header-badges">
-        {/* Hardware Acceleration Badge */}
-        <div className="badge badge-silicon" title={`Client GPU Acceleration: ${hw?.adapterName || 'Detecting...'}`}>
-          <Zap size={13} style={{ color: 'var(--accent-cyan)' }} />
-          <span>{isApple ? 'Apple Silicon M4' : (hw?.webgpu ? 'WebGPU Accelerated' : 'WebGL / Metal GPU')}</span>
-        </div>
-
-        {/* Live WebSocket Connection Status */}
-        <div className={`badge ${wsStatus === 'connected' ? 'badge-live' : 'badge-danger'}`} title="Real-Time WebSocket Connection">
-          <span className={`pulse-dot ${wsStatus === 'connected' ? '' : 'bg-red-500'}`} />
-          <Radio size={12} />
-          <span>{wsStatus === 'connected' ? 'LIVE' : 'CONNECTING'}</span>
-        </div>
-
         {/* Live FPS */}
-        <div className="badge" style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: '#F59E0B' }} title="Real-Time AI Inference Speed">
+        <div className="badge" style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: '#F59E0B' }} title="AI Inference Speed">
           <Activity size={13} />
           <span>{fps} FPS</span>
         </div>
 
-        {/* Download App Modal Trigger */}
-        <button
-          onClick={onOpenDownloadModal}
-          className="btn btn-primary"
-          style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-          title="Download Desktop App for Mac, Windows, Linux or Install PWA"
-        >
-          <Download size={14} />
-          <span>Download App</span>
-        </button>
-
-        {/* Calibration Guide */}
-        <button
-          onClick={onOpenCalibrationGuide}
-          className="btn btn-secondary"
-          style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem' }}
-          title="Adjust virtual counting line or 4-point perspective"
-        >
-          <Sliders size={13} />
-          <span>Calibration</span>
-        </button>
+        {/* User Email & Logout */}
+        {userEmail && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              {userEmail}
+            </span>
+            <button
+              onClick={onLogout}
+              className="btn btn-secondary"
+              style={{ padding: '0.32rem 0.65rem', fontSize: '0.72rem', color: '#F43F5E', borderColor: 'rgba(244,63,94,0.3)' }}
+              title="Sign Out"
+            >
+              Logout
+            </button>
+          </div>
+        )}
 
         {/* Fullscreen toggle */}
         <button
           onClick={onToggleFullscreen}
           className="btn btn-secondary"
-          style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
-          title="Toggle Fullscreen Mode"
+          style={{ padding: '0.32rem 0.5rem', fontSize: '0.75rem' }}
+          title="Toggle Fullscreen"
         >
           <Maximize size={13} />
         </button>

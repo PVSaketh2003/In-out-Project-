@@ -130,9 +130,14 @@
               <li>✓ Touch-optimized real-time spatial telemetry HUD</li>
             </ul>
           </div>
-          <a href="/live" id="btnMobile" class="btn-platform-download" style="background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(16, 185, 129, 0.25)); border-color: var(--border-cyan); color: #fff; font-weight: 700;">
-            ⚡ Launch Mobile Web App
-          </a>
+          <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+            <a href="/api/downloads/android" id="btnAndroid" class="btn-platform-download" style="flex: 1; text-align: center;">
+              🤖 Android (APK)
+            </a>
+            <a href="/api/downloads/ios" id="btnIOS" class="btn-platform-download" style="flex: 1; text-align: center;">
+              📱 iOS Profile
+            </a>
+          </div>
         </div>
 
         <!-- macOS Apple Silicon -->
@@ -147,8 +152,8 @@
               <li>✓ Standalone desktop package</li>
             </ul>
           </div>
-          <a href="/live" id="btnMacArm" class="btn-platform-download">
-            Download for Mac (Apple Silicon)
+          <a href="/api/downloads/macos" id="btnMacArm" class="btn-platform-download">
+            Download for Mac (.dmg)
           </a>
         </div>
 
@@ -156,16 +161,16 @@
         <div class="platform-card">
           <div>
             <div class="platform-icon">🍏</div>
-            <h3 class="platform-name">macOS (Intel x64)</h3>
-            <p class="platform-meta">Intel Core i5/i7/i9 • macOS 11 Big Sur or newer</p>
+            <h3 class="platform-name">macOS (Universal / ZIP)</h3>
+            <p class="platform-meta">Intel Core & Apple Silicon • macOS 11+</p>
             <ul class="platform-specs">
               <li>✓ Multi-threaded CPU ONNX Runtime</li>
               <li>✓ Integrated FaceTime HD camera support</li>
-              <li>✓ Standalone desktop package</li>
+              <li>✓ Portable ZIP package</li>
             </ul>
           </div>
-          <a href="/live" id="btnMacIntel" class="btn-platform-download">
-            Download for Mac (Intel)
+          <a href="/api/downloads/macos-zip" id="btnMacIntel" class="btn-platform-download">
+            Download for Mac (.zip)
           </a>
         </div>
 
@@ -177,11 +182,11 @@
             <p class="platform-meta">Windows 10 / 11 (64-bit)</p>
             <ul class="platform-specs">
               <li>✓ DirectShow & USB Camera drivers</li>
-              <li>✓ One-click setup wizard</li>
+              <li>✓ One-click setup package</li>
               <li>✓ High-DPI display optimized HUD</li>
             </ul>
           </div>
-          <a href="/live" id="btnWin" class="btn-platform-download">
+          <a href="/api/downloads/windows" id="btnWin" class="btn-platform-download">
             Download for Windows (.exe)
           </a>
         </div>
@@ -198,7 +203,7 @@
               <li>✓ Edge AI ready</li>
             </ul>
           </div>
-          <a href="/live" id="btnLinux" class="btn-platform-download">
+          <a href="/api/downloads/linux" id="btnLinux" class="btn-platform-download">
             Download for Linux (AppImage)
           </a>
         </div>

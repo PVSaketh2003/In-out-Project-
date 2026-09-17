@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>FullScreen</key>
+            <true/>
+            <key>IsRemovable</key>
+            <true/>
+            <key>Label</key>
+            <string>VisionEye</string>
+            <key>PayloadDescription</key>
+            <string>VisionEye Real-Time AI Video Analytics</string>
+            <key>PayloadDisplayName</key>
+            <string>VisionEye</string>
+            <key>PayloadIdentifier</key>
+            <string>com.pvsairamsaketh.visioneye.webclip</string>
+            <key>PayloadType</key>
+            <string>com.apple.webClip.managed</string>
+            <key>PayloadUUID</key>
+            <string>98E4B490-8C8B-4573-A39B-F10478033621</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>Precomposed</key>
+            <true/>
+            <key>URL</key>
+            <string>https://pvsairamsaketh.in/live</string>
+        </dict>
+    </array>
+    <key>PayloadDisplayName</key>
+    <string>VisionEye Application</string>
+    <key>PayloadIdentifier</key>
+    <string>com.pvsairamsaketh.visioneye</string>
+    <key>PayloadRemovalDisallowed</key>
+    <false/>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadUUID</key>
+    <string>B4FE2950-8488-468F-B2BC-517838562852</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>
