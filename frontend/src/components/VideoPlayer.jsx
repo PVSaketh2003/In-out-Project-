@@ -507,7 +507,23 @@ export default function VideoPlayer({
     if (result === 'playing') setPlayBlocked(false);
   };
 
-  // ── Canvas calibration overlay ────────────────────────────────────────────
+  // ── Canvas calibration overlay & interaction ─────────────────────────────
+  const localLineRef = useRef(null);
+  localLineRef.current = localLine;
+  const localPointsRef = useRef(null);
+  localPointsRef.current = localPoints;
+  const dragOffsetRef = useRef(null);
+
+  // Sync state from telemetry when not actively dragging
+  useEffect(() => {
+    if (telemetry?.counting_line && !activeHandle) {
+      setLocalLine(telemetry.counting_line);
+    }
+    if (telemetry?.perspective_points && !activeHandle) {
+      setLocalPoints(telemetry.perspective_points);
+    }
+  }, [telemetry?.counting_line, telemetry?.perspective_points, activeHandle]);
+
   const getCanvasCoords = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -520,80 +536,190 @@ export default function VideoPlayer({
     ];
   };
 
-  const handleMouseDown = (e) => {
-    if (!calibrationMode) return;
+  // Cursor hover feedback
+  const handleCanvasMouseMove = (e) => {
+    if (activeHandle) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     const coords = getCanvasCoords(e);
     if (!coords) return;
     const [nx, ny] = coords;
-    if (calibrationMode === 'line') {
-      const line = localLine || telemetry?.counting_line;
-      if (!line) return;
-      const dStart = Math.hypot(nx - line.start[0], ny - line.start[1]);
-      const dEnd = Math.hypot(nx - line.end[0], ny - line.end[1]);
-      if (dStart < 0.08) setActiveHandle('line_start');
-      else if (dEnd < 0.08) setActiveHandle('line_end');
-      else {
-        const dx = line.end[0] - line.start[0];
-        const dy = line.end[1] - line.start[1];
-        const updated = {
-          start: [
-            Math.max(0, Math.min(1, nx - dx / 2)),
-            Math.max(0, Math.min(1, ny - dy / 2)),
-          ],
-          end: [
-            Math.max(0, Math.min(1, nx + dx / 2)),
-            Math.max(0, Math.min(1, ny + dy / 2)),
-          ],
-        };
-        setLocalLine(updated);
-        updateCountingLine(updated.start, updated.end);
-        wsService.send('set_counting_line', updated);
-      }
-    } else if (calibrationMode === 'perspective') {
+    const w = canvas.width || 1280;
+    const h = canvas.height || 720;
+    const px = nx * w;
+    const py = ny * h;
+
+    const line = localLine || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
+    const p1x = line.start[0] * w, p1y = line.start[1] * h;
+    const p2x = line.end[0] * w, p2y = line.end[1] * h;
+
+    const distA = Math.hypot(px - p1x, py - p1y);
+    const distB = Math.hypot(px - p2x, py - p2y);
+
+    const dx = p2x - p1x, dy = p2y - p1y;
+    const segLenSq = dx * dx + dy * dy;
+    let distSeg = 9999;
+    if (segLenSq > 0) {
+      const t = Math.max(0, Math.min(1, ((px - p1x) * dx + (py - p1y) * dy) / segLenSq));
+      distSeg = Math.hypot(px - (p1x + t * dx), py - (p1y + t * dy));
+    }
+
+    if (distA < 32 || distB < 32) {
+      canvas.style.cursor = 'grab';
+    } else if (distSeg < 22) {
+      canvas.style.cursor = 'move';
+    } else {
+      canvas.style.cursor = calibrationMode ? 'crosshair' : 'default';
+    }
+  };
+
+  const handleMouseDown = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+    const [nx, ny] = coords;
+    const w = canvas.width || 1280;
+    const h = canvas.height || 720;
+    const px = nx * w;
+    const py = ny * h;
+
+    // Check line handles & segment
+    const line = localLine || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
+    const p1x = line.start[0] * w, p1y = line.start[1] * h;
+    const p2x = line.end[0] * w, p2y = line.end[1] * h;
+
+    const distA = Math.hypot(px - p1x, py - p1y);
+    const distB = Math.hypot(px - p2x, py - p2y);
+
+    const dx = p2x - p1x, dy = p2y - p1y;
+    const segLenSq = dx * dx + dy * dy;
+    let distSeg = 9999;
+    if (segLenSq > 0) {
+      const t = Math.max(0, Math.min(1, ((px - p1x) * dx + (py - p1y) * dy) / segLenSq));
+      distSeg = Math.hypot(px - (p1x + t * dx), py - (p1y + t * dy));
+    }
+
+    // Check perspective 4 corner points if in perspective mode
+    if (calibrationMode === 'perspective') {
       const pts = localPoints || telemetry?.perspective_points;
-      if (!pts || pts.length !== 4) return;
-      for (let i = 0; i < 4; i++) {
-        if (Math.hypot(nx - pts[i][0], ny - pts[i][1]) < 0.08) {
-          setActiveHandle(`p${i}`);
-          break;
+      if (pts && pts.length === 4) {
+        for (let i = 0; i < 4; i++) {
+          const cornerPx = pts[i][0] * w, cornerPy = pts[i][1] * h;
+          if (Math.hypot(px - cornerPx, py - cornerPy) < 32) {
+            setActiveHandle(`p${i}`);
+            return;
+          }
         }
       }
     }
-  };
 
-  const handleMouseMove = (e) => {
-    if (!activeHandle || !calibrationMode) return;
-    const coords = getCanvasCoords(e);
-    if (!coords) return;
-    const [nx, ny] = coords;
-    if (calibrationMode === 'line') {
-      const line = localLine || telemetry?.counting_line;
-      if (!line) return;
-      if (activeHandle === 'line_start')
-        setLocalLine({ ...line, start: [nx, ny] });
-      else if (activeHandle === 'line_end')
-        setLocalLine({ ...line, end: [nx, ny] });
-    } else if (calibrationMode === 'perspective') {
-      const pts = [...(localPoints || telemetry?.perspective_points)];
-      const idx = parseInt(activeHandle.replace('p', ''));
-      if (!isNaN(idx) && idx >= 0 && idx < 4) {
-        pts[idx] = [nx, ny];
-        setLocalPoints(pts);
-      }
+    if (distA < 36) {
+      if (calibrationMode !== 'line') onSetCalibrationMode('line');
+      setActiveHandle('line_start');
+    } else if (distB < 36) {
+      if (calibrationMode !== 'line') onSetCalibrationMode('line');
+      setActiveHandle('line_end');
+    } else if (distSeg < 26) {
+      if (calibrationMode !== 'line') onSetCalibrationMode('line');
+      dragOffsetRef.current = {
+        startX: nx,
+        startY: ny,
+        origStart: [...line.start],
+        origEnd: [...line.end],
+      };
+      setActiveHandle('line_body');
+    } else if (calibrationMode === 'line') {
+      // Reposition line center at click position
+      const halfDx = (line.end[0] - line.start[0]) / 2;
+      const halfDy = (line.end[1] - line.start[1]) / 2;
+      const clamp = (v) => Math.max(0.02, Math.min(0.98, parseFloat(v.toFixed(3))));
+      const updated = {
+        start: [clamp(nx - halfDx), clamp(ny - halfDy)],
+        end: [clamp(nx + halfDx), clamp(ny + halfDy)],
+      };
+      setLocalLine(updated);
+      updateCountingLine(updated.start, updated.end).catch(console.error);
+      wsService.send('set_counting_line', updated);
     }
   };
 
-  const handleMouseUp = () => {
+  // ── Global window mousemove & mouseup during drag (never drops or freezes) ──
+  useEffect(() => {
     if (!activeHandle) return;
-    if (calibrationMode === 'line' && localLine) {
-      updateCountingLine(localLine.start, localLine.end);
-      wsService.send('set_counting_line', localLine);
-    } else if (calibrationMode === 'perspective' && localPoints) {
-      updatePerspective(localPoints);
-      wsService.send('set_perspective', { points: localPoints });
-    }
-    setActiveHandle(null);
-  };
+
+    const onWindowMove = (e) => {
+      const coords = getCanvasCoords(e);
+      if (!coords) return;
+      const [nx, ny] = coords;
+      const clamp = (v) => Math.max(0.02, Math.min(0.98, parseFloat(v.toFixed(3))));
+
+      if (activeHandle === 'line_start') {
+        setLocalLine((prev) => {
+          const base = prev || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
+          const updated = { ...base, start: [clamp(nx), clamp(ny)] };
+          wsService.send('set_counting_line', updated);
+          return updated;
+        });
+      } else if (activeHandle === 'line_end') {
+        setLocalLine((prev) => {
+          const base = prev || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
+          const updated = { ...base, end: [clamp(nx), clamp(ny)] };
+          wsService.send('set_counting_line', updated);
+          return updated;
+        });
+      } else if (activeHandle === 'line_body') {
+        const offset = dragOffsetRef.current;
+        if (offset) {
+          const deltaX = nx - offset.startX;
+          const deltaY = ny - offset.startY;
+          setLocalLine(() => {
+            const updated = {
+              start: [clamp(offset.origStart[0] + deltaX), clamp(offset.origStart[1] + deltaY)],
+              end: [clamp(offset.origEnd[0] + deltaX), clamp(offset.origEnd[1] + deltaY)],
+            };
+            wsService.send('set_counting_line', updated);
+            return updated;
+          });
+        }
+      } else if (activeHandle.startsWith('p')) {
+        const idx = parseInt(activeHandle.replace('p', ''));
+        if (!isNaN(idx) && idx >= 0 && idx < 4) {
+          setLocalPoints((prev) => {
+            const pts = [...(prev || telemetry?.perspective_points || [[0.2, 0.45], [0.8, 0.45], [0.95, 0.95], [0.05, 0.95]])];
+            pts[idx] = [clamp(nx), clamp(ny)];
+            wsService.send('set_perspective', { points: pts });
+            return pts;
+          });
+        }
+      }
+    };
+
+    const onWindowUp = () => {
+      setActiveHandle(null);
+      dragOffsetRef.current = null;
+      if (localLineRef.current) {
+        updateCountingLine(localLineRef.current.start, localLineRef.current.end).catch(console.error);
+        wsService.send('set_counting_line', localLineRef.current);
+      }
+      if (localPointsRef.current) {
+        updatePerspective(localPointsRef.current).catch(console.error);
+        wsService.send('set_perspective', { points: localPointsRef.current });
+      }
+    };
+
+    window.addEventListener('mousemove', onWindowMove);
+    window.addEventListener('mouseup', onWindowUp);
+    window.addEventListener('touchmove', onWindowMove, { passive: false });
+    window.addEventListener('touchend', onWindowUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onWindowMove);
+      window.removeEventListener('mouseup', onWindowUp);
+      window.removeEventListener('touchmove', onWindowMove);
+      window.removeEventListener('touchend', onWindowUp);
+    };
+  }, [activeHandle, telemetry?.counting_line, telemetry?.perspective_points]);
 
   // ── Canvas overlay drawing ────────────────────────────────────────────────
   useEffect(() => {
@@ -604,27 +730,28 @@ export default function VideoPlayer({
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // Draw Counting Line whenever active or in calibration mode
-    if (calibrationMode === 'line' || displayMode === 'local') {
-      const line = localLine || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
-      if (line) {
-        const sx = line.start[0] * w,
-          sy = line.start[1] * h,
-          ex = line.end[0] * w,
-          ey = line.end[1] * h;
-        const mx = (sx + ex) / 2,
-          my = (sy + ey) / 2;
-        const dx = ex - sx,
-          dy = ey - sy,
-          len = Math.hypot(dx, dy) || 1;
-        const nx = -dy / len,
-          ny = dx / len,
-          arrowDist = 45;
-        const inX = mx + nx * arrowDist,
-          inY = my + ny * arrowDist;
-        const outX = mx - nx * arrowDist,
-          outY = my - ny * arrowDist;
+    // Draw Counting Line whenever available
+    const line = localLine || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
+    if (line && line.start && line.end) {
+      const sx = line.start[0] * w,
+        sy = line.start[1] * h,
+        ex = line.end[0] * w,
+        ey = line.end[1] * h;
+      const mx = (sx + ex) / 2,
+        my = (sy + ey) / 2;
+      const dx = ex - sx,
+        dy = ey - sy,
+        len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len,
+        ny = dx / len,
+        arrowDist = 45;
+      const inX = mx + nx * arrowDist,
+        inY = my + ny * arrowDist;
+      const outX = mx - nx * arrowDist,
+        outY = my - ny * arrowDist;
 
+      // Draw directional banners only in editing or local mode to avoid duplication with backend
+      if (calibrationMode === 'line' || displayMode === 'local' || activeHandle) {
         // IN direction arrow & badge
         ctx.strokeStyle = '#10B981';
         ctx.fillStyle = '#10B981';
@@ -661,37 +788,63 @@ export default function VideoPlayer({
         ctx.textAlign = 'left';
 
         // Main Virtual Counting Line
-        ctx.strokeStyle = 'rgba(0,240,255,0.35)';
-        ctx.lineWidth = 6;
+        ctx.strokeStyle = 'rgba(0,240,255,0.4)';
+        ctx.lineWidth = 7;
         ctx.beginPath();
         ctx.moveTo(sx, sy);
         ctx.lineTo(ex, ey);
         ctx.stroke();
         ctx.strokeStyle = '#00F0FF';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(sx, sy);
         ctx.lineTo(ex, ey);
         ctx.stroke();
-
-        // End Handle Markers (A and B)
-        const isEditing = calibrationMode === 'line';
-        [
-          [sx, sy, 'A'],
-          [ex, ey, 'B'],
-        ].forEach(([px, py, lbl]) => {
-          ctx.fillStyle = isEditing ? '#00F0FF' : 'rgba(0,240,255,0.85)';
-          ctx.strokeStyle = '#FFFFFF';
-          ctx.lineWidth = isEditing ? 3 : 2;
-          ctx.beginPath();
-          ctx.arc(px, py, isEditing ? 14 : 9, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#070B13';
-          ctx.font = `bold ${isEditing ? '11px' : '9px'} JetBrains Mono,monospace`;
-          ctx.fillText(lbl, px - 3.5, py + 3.5);
-        });
       }
+
+      // End Handle Markers (A and B) - Always interactive
+      const isEditing = calibrationMode === 'line' || activeHandle;
+      [
+        [sx, sy, 'A', line.start],
+        [ex, ey, 'B', line.end],
+      ].forEach(([px, py, lbl, normPt]) => {
+        // Outer glow
+        ctx.beginPath();
+        ctx.arc(px, py, isEditing ? 22 : 16, 0, Math.PI * 2);
+        ctx.fillStyle = isEditing ? 'rgba(0,240,255,0.3)' : 'rgba(0,240,255,0.18)';
+        ctx.fill();
+
+        // Main circular handle
+        ctx.fillStyle = isEditing ? '#00F0FF' : 'rgba(0,240,255,0.9)';
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = isEditing ? 3 : 2.5;
+        ctx.beginPath();
+        ctx.arc(px, py, isEditing ? 15 : 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Handle letter
+        ctx.fillStyle = '#070B13';
+        ctx.font = `bold ${isEditing ? '12px' : '10px'} JetBrains Mono,monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(lbl, px, py + 4);
+
+        // Coordinate tooltip when editing
+        if (isEditing) {
+          const coordText = `${lbl} (${(normPt[0] * 100).toFixed(0)}%, ${(normPt[1] * 100).toFixed(0)}%)`;
+          ctx.font = 'bold 10px JetBrains Mono,monospace';
+          const badgeW = ctx.measureText(coordText).width + 12;
+          const badgeY = py > 40 ? py - 24 : py + 28;
+          ctx.fillStyle = 'rgba(7,10,19,0.92)';
+          ctx.fillRect(px - badgeW / 2, badgeY - 11, badgeW, 18);
+          ctx.strokeStyle = '#00F0FF';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px - badgeW / 2, badgeY - 11, badgeW, 18);
+          ctx.fillStyle = '#00F0FF';
+          ctx.fillText(coordText, px, badgeY + 2);
+        }
+      });
+      ctx.textAlign = 'left';
     }
 
     if (calibrationMode === 'perspective') {
@@ -927,18 +1080,47 @@ export default function VideoPlayer({
             inset: 0,
             width: '100%',
             height: '100%',
-            pointerEvents: calibrationMode ? 'auto' : 'none',
-            touchAction: calibrationMode ? 'none' : 'auto',
-            cursor: calibrationMode ? 'crosshair' : 'default',
+            pointerEvents: 'auto',
+            touchAction: 'none',
           }}
           onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onMouseMove={handleCanvasMouseMove}
           onTouchStart={handleMouseDown}
-          onTouchMove={handleMouseMove}
-          onTouchEnd={handleMouseUp}
         />
+
+        {/* ── Active Line Calibration Banner across bottom of video ── */}
+        {calibrationMode === 'line' && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '12px',
+              left: '12px',
+              right: '12px',
+              background: 'rgba(7, 10, 19, 0.92)',
+              border: '1px solid var(--accent-cyan)',
+              borderRadius: '8px',
+              padding: '0.5rem 0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              zIndex: 12,
+              backdropFilter: 'blur(8px)',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: '#00F0FF' }}>
+              <span style={{ fontSize: '1.1rem' }}>📏</span>
+              <span><strong>Line Editing Active:</strong> Drag Handle <strong>A</strong>, Handle <strong>B</strong>, or the line body across the doorway.</span>
+            </div>
+            <button
+              onClick={() => onSetCalibrationMode(null)}
+              className="btn btn-primary"
+              style={{ padding: '0.25rem 0.85rem', fontSize: '0.75rem', fontWeight: 700 }}
+            >
+              ✓ Save Line
+            </button>
+          </div>
+        )}
 
         {/* ── HUD Top Bar ── */}
         <div

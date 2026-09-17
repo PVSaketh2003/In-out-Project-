@@ -140,6 +140,32 @@ export default function ControlsPanel({
     showNotification('Swapped IN / OUT Flow Direction');
   };
 
+  // 1-Click Line Nudge (Up, Down, Left, Right by 5%)
+  const handleNudgeLine = (direction) => {
+    const line = telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
+    const step = 0.05;
+    let dx = 0, dy = 0;
+    if (direction === 'up') dy = -step;
+    else if (direction === 'down') dy = step;
+    else if (direction === 'left') dx = -step;
+    else if (direction === 'right') dx = step;
+
+    const clamp = (v) => Math.max(0.02, Math.min(0.98, parseFloat(v.toFixed(3))));
+    const newStart = [clamp(line.start[0] + dx), clamp(line.start[1] + dy)];
+    const newEnd = [clamp(line.end[0] + dx), clamp(line.end[1] + dy)];
+
+    updateCountingLine(newStart, newEnd);
+    wsService.send('set_counting_line', { start: newStart, end: newEnd });
+    showNotification(`Nudged line ${direction.toUpperCase()}`);
+  };
+
+  const handleResetLineDefault = () => {
+    const defaultLine = { start: [0.1, 0.5], end: [0.9, 0.5] };
+    updateCountingLine(defaultLine.start, defaultLine.end);
+    wsService.send('set_counting_line', defaultLine);
+    showNotification('Counting line reset to center');
+  };
+
   // Preset Application
   const handleApplyPreset = async (preset) => {
     try {
@@ -429,6 +455,55 @@ export default function ControlsPanel({
               title="Reset to default geometry"
             >
               Reset
+            </button>
+          </div>
+        </div>
+
+        {/* 1-Click Line Nudge & Center Reset */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Nudge Line Position (1-Click):
+            </span>
+            <button
+              onClick={handleResetLineDefault}
+              style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '0.68rem', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Center Line
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.3rem' }}>
+            <button
+              onClick={() => handleNudgeLine('up')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.72rem', fontWeight: 700 }}
+              title="Shift counting line UP by 5%"
+            >
+              ▲ Up
+            </button>
+            <button
+              onClick={() => handleNudgeLine('down')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.72rem', fontWeight: 700 }}
+              title="Shift counting line DOWN by 5%"
+            >
+              ▼ Down
+            </button>
+            <button
+              onClick={() => handleNudgeLine('left')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.72rem', fontWeight: 700 }}
+              title="Shift counting line LEFT by 5%"
+            >
+              ◄ Left
+            </button>
+            <button
+              onClick={() => handleNudgeLine('right')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.72rem', fontWeight: 700 }}
+              title="Shift counting line RIGHT by 5%"
+            >
+              ► Right
             </button>
           </div>
         </div>
