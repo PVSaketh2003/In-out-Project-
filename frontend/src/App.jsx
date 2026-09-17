@@ -8,8 +8,10 @@ import RecentEventsList from './components/RecentEventsList';
 import FlowHistoryChart from './components/FlowHistoryChart';
 import SystemInfoModal from './components/SystemInfoModal';
 import CalibrationModal from './components/CalibrationModal';
+import DownloadAppModal from './components/DownloadAppModal';
 import { wsService } from './services/websocket';
 import { fetchConfig } from './services/api';
+import { Layers, SlidersHorizontal, Activity } from 'lucide-react';
 
 export default function App() {
   const [telemetry, setTelemetry] = useState(null);
@@ -17,6 +19,8 @@ export default function App() {
   const [calibrationMode, setCalibrationMode] = useState(null); // 'line' | 'perspective' | null
   const [showSystemInfo, setShowSystemInfo] = useState(false);
   const [showCalibrationGuide, setShowCalibrationGuide] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [activeSideTab, setActiveSideTab] = useState('controls'); // 'controls' | 'radar' | 'events'
 
   // Connect to WebSocket on mount
   useEffect(() => {
@@ -67,14 +71,15 @@ export default function App() {
         wsStatus={wsStatus}
         onOpenSystemInfo={() => setShowSystemInfo(true)}
         onOpenCalibrationGuide={() => setShowCalibrationGuide(true)}
+        onOpenDownloadModal={() => setShowDownloadModal(true)}
         onToggleFullscreen={handleToggleFullscreen}
       />
 
-      <main className="main-content">
-        {/* Top High-Tech Metrics Grid */}
+      <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        {/* Top Analytics Metrics Grid */}
         <AnalyticsCards telemetry={telemetry} />
 
-        {/* Main 2-Column CV Control & Visualization Grid */}
+        {/* Main 2-Column CV Workspace Grid */}
         <div className="dashboard-grid">
           {/* Left Column: Live Video Feed & Timeline Charts */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -86,30 +91,74 @@ export default function App() {
 
             {/* Occupancy Timeline Chart */}
             <FlowHistoryChart telemetry={telemetry} />
-
-            {/* Live Crossing Event Activity Feed */}
-            <RecentEventsList telemetry={telemetry} />
           </div>
 
-          {/* Right Column: Top-View Bird's-Eye Minimap & Full Control Hub */}
-          <div className="side-panel">
-            {/* 2D Top-View / Bird's-Eye Canvas */}
-            <TopViewPanel
-              telemetry={telemetry}
-              onSetCalibrationMode={handleSetCalibrationMode}
-            />
+          {/* Right Column: Clean Tabbed Control Center */}
+          <div className="side-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Tab Navigation Switcher */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem',
+              background: 'rgba(10, 15, 29, 0.8)', padding: '0.3rem', borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}>
+              <button
+                onClick={() => setActiveSideTab('controls')}
+                className={`btn ${activeSideTab === 'controls' ? 'btn-active' : 'btn-secondary'}`}
+                style={{ padding: '0.45rem 0.25rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+              >
+                <SlidersHorizontal size={13} />
+                <span>Controls</span>
+              </button>
 
-            {/* Camera / Video Source & Detection Settings */}
-            <ControlsPanel
-              telemetry={telemetry}
-              calibrationMode={calibrationMode}
-              onSetCalibrationMode={handleSetCalibrationMode}
-            />
+              <button
+                onClick={() => setActiveSideTab('radar')}
+                className={`btn ${activeSideTab === 'radar' ? 'btn-active' : 'btn-secondary'}`}
+                style={{ padding: '0.45rem 0.25rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+              >
+                <Layers size={13} />
+                <span>Radar Map</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSideTab('events')}
+                className={`btn ${activeSideTab === 'events' ? 'btn-active' : 'btn-secondary'}`}
+                style={{ padding: '0.45rem 0.25rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+              >
+                <Activity size={13} />
+                <span>Activity</span>
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            {activeSideTab === 'controls' && (
+              <ControlsPanel
+                telemetry={telemetry}
+                calibrationMode={calibrationMode}
+                onSetCalibrationMode={handleSetCalibrationMode}
+              />
+            )}
+
+            {activeSideTab === 'radar' && (
+              <TopViewPanel
+                telemetry={telemetry}
+                onSetCalibrationMode={handleSetCalibrationMode}
+              />
+            )}
+
+            {activeSideTab === 'events' && (
+              <RecentEventsList telemetry={telemetry} />
+            )}
           </div>
         </div>
       </main>
 
       {/* Modals */}
+      {showDownloadModal && (
+        <DownloadAppModal
+          onClose={() => setShowDownloadModal(false)}
+        />
+      )}
+
       {showSystemInfo && (
         <SystemInfoModal
           telemetry={telemetry}

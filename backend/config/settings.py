@@ -105,6 +105,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
 ]
 
+# File & Video Upload Limits (Supports 4K/HD video uploads up to 500MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 524288000  # 500 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 524288000  # 500 MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 2000
+
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",

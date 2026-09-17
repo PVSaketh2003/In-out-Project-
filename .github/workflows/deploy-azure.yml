@@ -56,11 +56,41 @@ jobs:
           npm run build
 
   # ----------------------------------------------------------------------------
-  # Job 2: Build & Push Production Docker Image to Docker Hub
+  # Job 2: Validate Secrets Availability
+  # ----------------------------------------------------------------------------
+  check-secrets:
+    name: Validate Deployment Secrets
+    runs-on: ubuntu-latest
+    outputs:
+      has-dockerhub: ${{ steps.check.outputs.has-dockerhub }}
+      has-azure: ${{ steps.check.outputs.has-azure }}
+    steps:
+      - name: Check Secrets Availability
+        id: check
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          AZURE_VM_HOST: ${{ secrets.AZURE_VM_HOST }}
+          AZURE_VM_SSH_KEY: ${{ secrets.AZURE_VM_SSH_KEY }}
+        run: |
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "has-dockerhub=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-dockerhub=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$AZURE_VM_HOST" ] && [ -n "$AZURE_VM_SSH_KEY" ]; then
+            echo "has-azure=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-azure=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ----------------------------------------------------------------------------
+  # Job 3: Build & Push Production Docker Image to Docker Hub
   # ----------------------------------------------------------------------------
   build-and-push-docker:
     name: Build & Push Docker Hub Container
-    needs: ci-gatekeeper
+    needs: [ci-gatekeeper, check-secrets]
+    if: needs.check-secrets.outputs.has-dockerhub == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -73,7 +103,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -89,7 +118,6 @@ jobs:
             type=sha,format=short
 
       - name: Build & Push Universal Container
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -101,13 +129,13 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ----------------------------------------------------------------------------
-  # Job 3: Continuous Deployment to Azure VM
+  # Job 4: Continuous Deployment to Azure VM
   # ----------------------------------------------------------------------------
   deploy-to-azure-vm:
     name: Deploy Container to Azure VM (pvsaketh1@gmail.com)
-    needs: build-and-push-docker
+    needs: [build-and-push-docker, check-secrets]
+    if: needs.check-secrets.outputs.has-azure == 'true'
     runs-on: ubuntu-latest
-    if: ${{ secrets.AZURE_VM_HOST != '' && secrets.AZURE_VM_SSH_KEY != '' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

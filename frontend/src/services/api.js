@@ -76,11 +76,16 @@ export async function uploadVideoFile(file) {
   try {
     const formData = new FormData();
     formData.append('video', file);
+    formData.append('file', file);
     const res = await fetch(`${API_BASE}/video/upload`, {
       method: 'POST',
       body: formData,
     });
-    return await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.status === 'error' || data.error) {
+      throw new Error(data.error || data.message || `Upload failed with status HTTP ${res.status}`);
+    }
+    return data;
   } catch (err) {
     console.error('uploadVideoFile error:', err);
     throw err;

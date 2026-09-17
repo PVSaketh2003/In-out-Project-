@@ -2,6 +2,7 @@
 VisionEye REST API Views and MJPEG Streaming Endpoints
 """
 import os
+import re
 import time
 import platform
 import logging
@@ -111,37 +112,48 @@ class VideoSourceControlView(APIView):
 
 class VideoUploadView(APIView):
     """
-    Accepts video file uploads (MP4, AVI, MOV, MKV) and plays it in the pipeline.
+    Accepts video file uploads (MP4, AVI, MOV, MKV, WebM) and plays it in the pipeline.
     POST /api/video/upload
     """
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
-        video_file = request.FILES.get("video")
-        if not video_file:
-            return Response({"error": "No video file provided"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            video_file = request.FILES.get("video") or request.FILES.get("file")
+            if not video_file:
+                return Response({"error": "No video file provided in request"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Save to media folder
-        upload_dir = os.path.join(settings.MEDIA_ROOT, "uploads")
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, video_file.name)
+            # Sanitize filename for cross-platform compatibility (macOS/Linux/Windows)
+            raw_name = os.path.basename(video_file.name)
+            clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', raw_name)
+            if not clean_name:
+                clean_name = f"upload_{int(time.time())}.mp4"
 
-        with open(file_path, "wb+") as destination:
-            for chunk in video_file.chunks():
-                destination.write(chunk)
+            # Save to media folder
+            upload_dir = os.path.join(settings.MEDIA_ROOT, "uploads")
+            os.makedirs(upload_dir, exist_ok=True)
+            file_path = os.path.join(upload_dir, clean_name)
 
-        logger.info(f"[VideoUpload] Video saved to: {file_path}")
+            with open(file_path, "wb+") as destination:
+                for chunk in video_file.chunks():
+                    destination.write(chunk)
 
-        # Automatically start playing the uploaded file
-        pipeline = get_pipeline()
-        pipeline.start(source_type="file", source_path=file_path)
+            logger.info(f"[VideoUpload] Video successfully saved to: {file_path} ({video_file.size} bytes)")
 
-        return Response({
-            "status": "uploaded_and_started",
-            "file_name": video_file.name,
-            "file_path": file_path,
-            "source_info": pipeline.video_source.get_info(),
-        })
+            # Automatically switch pipeline to play the uploaded file
+            pipeline = get_pipeline()
+            started = pipeline.start(source_type="file", source_path=file_path)
+
+            return Response({
+                "status": "uploaded_and_started" if started else "uploaded",
+                "file_name": clean_name,
+                "file_path": file_path,
+                "source_info": pipeline.video_source.get_info(),
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"[VideoUploadView] Upload failed: {e}", exc_info=True)
+            return Response({"error": f"Failed to process video: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 import base64

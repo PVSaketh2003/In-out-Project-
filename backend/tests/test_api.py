@@ -80,3 +80,16 @@ def test_pwa_manifest(client):
     resp = client.get("/manifest.webmanifest")
     assert resp.status_code == 200
 
+
+@pytest.mark.django_db
+def test_video_upload_endpoint(client):
+    """Verifies that uploading a video file via multipart form-data succeeds."""
+    import io
+    dummy_video = io.BytesIO(b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom")
+    dummy_video.name = "test_upload_sample.mp4"
+    resp = client.post("/api/video/upload", {"video": dummy_video})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] in ["uploaded_and_started", "uploaded"]
+    assert "test_upload_sample.mp4" in data["file_name"]
+

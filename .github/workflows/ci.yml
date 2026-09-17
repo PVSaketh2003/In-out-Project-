@@ -119,12 +119,12 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: 'desktop/package.json'
+          cache-dependency-path: 'desktop/package-lock.json'
 
       - name: Build Frontend Dist for Desktop Staging
         run: |
           cd frontend
-          npm ci
+          npm ci --prefer-offline
           npm run build
           mkdir -p ../desktop/dist-frontend
           cp -r dist/* ../desktop/dist-frontend/
@@ -132,5 +132,5 @@ jobs:
       - name: Test Desktop App Packaging Dry-Run
         run: |
           cd desktop
-          npm ci
+          npm ci || npm install
           npx electron-builder --linux --dir
