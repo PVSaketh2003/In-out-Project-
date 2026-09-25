@@ -5,6 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -134,3 +135,33 @@ jobs:
           cd desktop
           npm ci || npm install
           npx electron-builder --linux --dir
+
+  # ----------------------------------------------------------------------------
+  # Job 5: Automated Azure CD Deployment (Runs on main after all tests pass)
+  # ----------------------------------------------------------------------------
+  azure-cd-deploy:
+    name: Azure Production CD Deploy
+    needs: [backend-test, frontend-build, docker-validation]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Azure VM (If SSH Secrets Configured)
+        env:
+          AZURE_HOST: ${{ secrets.AZURE_VM_HOST }}
+          AZURE_KEY: ${{ secrets.AZURE_SSH_KEY }}
+          AZURE_USER: ${{ secrets.AZURE_USER || 'azureuser' }}
+        run: |
+          if [ -z "$AZURE_HOST" ] || [ -z "$AZURE_KEY" ]; then
+            echo "Notice: Azure deployment secrets (AZURE_VM_HOST, AZURE_SSH_KEY) not set in repository secrets."
+            echo "Skipping automated CD step. Direct SSH deployment via quick_deploy.sh remains active."
+            exit 0
+          fi
+          echo "Setting up SSH key for automated Azure deployment..."
+          mkdir -p ~/.ssh
+          echo "$AZURE_KEY" > ~/.ssh/azure_deploy_key
+          chmod 600 ~/.ssh/azure_deploy_key
+          bash azure/quick_deploy.sh ~/.ssh/azure_deploy_key "$AZURE_HOST"
+

@@ -140,10 +140,10 @@ export default function ControlsPanel({
     showNotification('Swapped IN / OUT Flow Direction');
   };
 
-  // 1-Click Line Nudge (Up, Down, Left, Right by 5%)
+  // 1-Click Line Nudge (Up, Down, Left, Right by 4%)
   const handleNudgeLine = (direction) => {
-    const line = telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
-    const step = 0.05;
+    const line = telemetry?.counting_line || { start: [0.15, 0.72], end: [0.85, 0.48] };
+    const step = 0.04;
     let dx = 0, dy = 0;
     if (direction === 'up') dy = -step;
     else if (direction === 'down') dy = step;
@@ -159,11 +159,29 @@ export default function ControlsPanel({
     showNotification(`Nudged line ${direction.toUpperCase()}`);
   };
 
-  const handleResetLineDefault = () => {
-    const defaultLine = { start: [0.1, 0.5], end: [0.9, 0.5] };
-    updateCountingLine(defaultLine.start, defaultLine.end);
-    wsService.send('set_counting_line', defaultLine);
-    showNotification('Counting line reset to center');
+  const handleResetLineCorner = () => {
+    const cornerLine = { start: [0.15, 0.72], end: [0.85, 0.48] };
+    updateCountingLine(cornerLine.start, cornerLine.end);
+    wsService.send('set_counting_line', cornerLine);
+    showNotification('Counting line set to Corner Doorway');
+  };
+
+  const handleSetLinePreset = (presetName) => {
+    let presetLine;
+    if (presetName === 'corner') {
+      presetLine = { start: [0.15, 0.72], end: [0.85, 0.48] };
+    } else if (presetName === 'entrance') {
+      presetLine = { start: [0.10, 0.65], end: [0.90, 0.65] };
+    } else if (presetName === 'diagonal') {
+      presetLine = { start: [0.15, 0.85], end: [0.85, 0.35] };
+    } else if (presetName === 'center') {
+      presetLine = { start: [0.10, 0.50], end: [0.90, 0.50] };
+    }
+    if (presetLine) {
+      updateCountingLine(presetLine.start, presetLine.end);
+      wsService.send('set_counting_line', presetLine);
+      showNotification(`Applied line preset: ${presetName.toUpperCase()}`);
+    }
   };
 
   // Preset Application
@@ -361,7 +379,17 @@ export default function ControlsPanel({
         {/* Main Calibration Buttons */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem' }}>
           <button
-            onClick={() => onSetCalibrationMode && onSetCalibrationMode(calibrationMode === 'line' ? null : 'line')}
+            onClick={() => {
+              if (calibrationMode === 'line') {
+                const lineToSave = telemetry?.counting_line || { start: [0.15, 0.72], end: [0.85, 0.48] };
+                updateCountingLine(lineToSave.start, lineToSave.end);
+                wsService.send('set_counting_line', lineToSave);
+                onSetCalibrationMode(null);
+                showNotification('✓ Counting line saved successfully!');
+              } else {
+                onSetCalibrationMode('line');
+              }
+            }}
             className={`btn ${calibrationMode === 'line' ? 'btn-primary' : 'btn-secondary'}`}
             style={{
               padding: '0.55rem 0.5rem',
@@ -372,7 +400,7 @@ export default function ControlsPanel({
             }}
           >
             {calibrationMode === 'line' ? <CheckCircle2 size={14} /> : <Sliders size={13} />}
-            <span>{calibrationMode === 'line' ? '✓ Save Line Position' : '📏 Adjust Counting Line'}</span>
+            <span>{calibrationMode === 'line' ? '✓ Save Line Position' : '✏️ Edit Line on Video'}</span>
           </button>
 
           <button
@@ -384,6 +412,47 @@ export default function ControlsPanel({
             <ArrowLeftRight size={13} style={{ marginRight: '4px', color: 'var(--accent-amber)' }} />
             Flip IN/OUT
           </button>
+        </div>
+
+        {/* Counting Line Angle Presets */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.1rem' }}>
+          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Counting Line Presets:
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.3rem' }}>
+            <button
+              onClick={() => handleSetLinePreset('corner')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem', borderColor: 'rgba(0, 240, 255, 0.4)', color: '#00F0FF' }}
+              title="Corner Doorway view (Recommended)"
+            >
+              📐 Corner
+            </button>
+            <button
+              onClick={() => handleSetLinePreset('entrance')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
+              title="Entrance doorway / Gate view"
+            >
+              🚪 Gate
+            </button>
+            <button
+              onClick={() => handleSetLinePreset('diagonal')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
+              title="Diagonal walkway view"
+            >
+              ↗️ Diagonal
+            </button>
+            <button
+              onClick={() => handleSetLinePreset('center')}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
+              title="Center horizontal line"
+            >
+              ↔️ Center
+            </button>
+          </div>
         </div>
 
         {/* Secondary Calibration Modes */}
@@ -420,56 +489,17 @@ export default function ControlsPanel({
           </button>
         </div>
 
-        {/* Camera Angle Presets */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.1rem' }}>
-          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Camera Angle Presets:</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.3rem' }}>
-            <button
-              onClick={() => handleApplyPreset('corridor')}
-              className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
-              title="Corridor / Hallway view"
-            >
-              Corridor
-            </button>
-            <button
-              onClick={() => handleApplyPreset('entrance')}
-              className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
-              title="Entrance doorway / Gate view"
-            >
-              Entrance
-            </button>
-            <button
-              onClick={() => handleApplyPreset('floor')}
-              className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
-              title="Wide facility floor"
-            >
-              Floor
-            </button>
-            <button
-              onClick={() => handleApplyPreset('default')}
-              className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.2rem', fontSize: '0.69rem' }}
-              title="Reset to default geometry"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        {/* 1-Click Line Nudge & Center Reset */}
+        {/* 1-Click Line Nudge & Corner Reset */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.2rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Nudge Line Position (1-Click):
             </span>
             <button
-              onClick={handleResetLineDefault}
+              onClick={handleResetLineCorner}
               style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '0.68rem', cursor: 'pointer', textDecoration: 'underline' }}
             >
-              Center Line
+              📐 Corner Reset
             </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.3rem' }}>
@@ -477,7 +507,7 @@ export default function ControlsPanel({
               onClick={() => handleNudgeLine('up')}
               className="btn btn-secondary"
               style={{ padding: '0.35rem 0.2rem', fontSize: '0.72rem', fontWeight: 700 }}
-              title="Shift counting line UP by 5%"
+              title="Shift counting line UP by 4%"
             >
               ▲ Up
             </button>
@@ -485,7 +515,7 @@ export default function ControlsPanel({
               onClick={() => handleNudgeLine('down')}
               className="btn btn-secondary"
               style={{ padding: '0.35rem 0.2rem', fontSize: '0.72rem', fontWeight: 700 }}
-              title="Shift counting line DOWN by 5%"
+              title="Shift counting line DOWN by 4%"
             >
               ▼ Down
             </button>
@@ -493,7 +523,7 @@ export default function ControlsPanel({
               onClick={() => handleNudgeLine('left')}
               className="btn btn-secondary"
               style={{ padding: '0.35rem 0.2rem', fontSize: '0.72rem', fontWeight: 700 }}
-              title="Shift counting line LEFT by 5%"
+              title="Shift counting line LEFT by 4%"
             >
               ◄ Left
             </button>
@@ -501,7 +531,7 @@ export default function ControlsPanel({
               onClick={() => handleNudgeLine('right')}
               className="btn btn-secondary"
               style={{ padding: '0.35rem 0.2rem', fontSize: '0.72rem', fontWeight: 700 }}
-              title="Shift counting line RIGHT by 5%"
+              title="Shift counting line RIGHT by 4%"
             >
               ► Right
             </button>

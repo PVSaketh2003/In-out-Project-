@@ -22,8 +22,8 @@ echo "║             Automated Docker, UFW, Nginx & Certbot SSL Setup          
 echo "╚════════════════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-DOMAIN="pvsairamsaketh.in"
-EMAIL="admin@pvsairamsaketh.in"
+DOMAIN="${1:-pvsairamsaketh.in}"
+EMAIL="${2:-pvsaketh1@gmail.com}"
 
 # 1. Update OS packages
 echo -e "${CYAN}[1/6] Updating system packages...${NC}"

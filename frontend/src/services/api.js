@@ -24,7 +24,7 @@ export async function fetchCameras() {
   }
 }
 
-export async function startVideoSource(sourceType, sourcePath = null, cameraIndex = null) {
+export async function startVideoSource(sourceType, sourcePath = null, cameraIndex = null, username = null, password = null) {
   try {
     const res = await fetch(`${API_BASE}/video/start`, {
       method: 'POST',
@@ -33,6 +33,8 @@ export async function startVideoSource(sourceType, sourcePath = null, cameraInde
         source_type: sourceType,
         source_path: sourcePath,
         camera_index: cameraIndex,
+        username,
+        password,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -43,6 +45,29 @@ export async function startVideoSource(sourceType, sourcePath = null, cameraInde
   } catch (err) {
     console.error('startVideoSource error:', err);
     throw err;
+  }
+}
+
+export async function testRtspConnection(rtspUrl, username = '', password = '') {
+  try {
+    const res = await fetch(`${API_BASE}/video/test-rtsp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rtsp_url: rtspUrl,
+        username,
+        password,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return data;
+  } catch (err) {
+    console.error('testRtspConnection error:', err);
+    return {
+      status: 'failed',
+      state: 'unreachable',
+      message: 'Unable to communicate with the VisionEye server. Please check your connection.',
+    };
   }
 }
 

@@ -114,3 +114,32 @@ def test_client_frame_push_endpoint(client):
     data = resp.json()
     assert data["status"] == "ok"
 
+
+def test_rtsp_test_connection_invalid_url(client):
+    """Tests POST /api/video/test-rtsp with missing or invalid URL."""
+    import json
+    resp = client.post(
+        "/api/video/test-rtsp",
+        data=json.dumps({"rtsp_url": "http://not-an-rtsp-stream"}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data["status"] == "failed"
+    assert data["state"] == "invalid_url"
+
+
+def test_rtsp_test_connection_unreachable(client):
+    """Tests POST /api/video/test-rtsp with unreachable LAN address."""
+    import json
+    resp = client.post(
+        "/api/video/test-rtsp",
+        data=json.dumps({"rtsp_url": "rtsp://192.0.2.1:554/stream", "timeout": 0.5}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "failed"
+    assert data["state"] in ["unreachable", "timeout", "failed"]
+    assert "network" in data["message"].lower() or "connect" in data["message"].lower()
+

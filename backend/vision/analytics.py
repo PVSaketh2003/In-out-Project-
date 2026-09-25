@@ -35,10 +35,10 @@ class FootTrafficAnalytics:
 
     def __init__(
         self,
-        line_start: Tuple[float, float] = (0.1, 0.5),
-        line_end: Tuple[float, float] = (0.9, 0.5),
+        line_start: Tuple[float, float] = (0.15, 0.72),
+        line_end: Tuple[float, float] = (0.85, 0.48),
     ):
-        # Normalized coordinates [0.0 - 1.0]
+        # Normalized coordinates [0.0 - 1.0] (Default from corner across entrance)
         self.norm_line_start = list(line_start)
         self.norm_line_end = list(line_end)
 

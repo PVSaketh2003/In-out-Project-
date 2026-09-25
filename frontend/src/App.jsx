@@ -1,23 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
+import StepProgress from './components/StepProgress';
+import VideoSourceSelector from './components/VideoSourceSelector';
 import VideoPlayer from './components/VideoPlayer';
-import TopViewPanel from './components/TopViewPanel';
-import ControlsPanel from './components/ControlsPanel';
-import RecentEventsList from './components/RecentEventsList';
-import FlowHistoryChart from './components/FlowHistoryChart';
-import SystemInfoModal from './components/SystemInfoModal';
-import CalibrationModal from './components/CalibrationModal';
-import AuthView from './components/AuthView';
+import AnalyticsSummary from './components/AnalyticsSummary';
+import SettingsAccordion from './components/SettingsAccordion';
+import PerformancePanel from './components/PerformancePanel';
+import MobileActionBar from './components/MobileActionBar';
+import CountingLineEditorModal from './components/CountingLineEditorModal';
+import RTSPCameraModal from './components/RTSPCameraModal';
 import DownloadView from './components/DownloadView';
+import AuthView from './components/AuthView';
+import CalibrationModal from './components/CalibrationModal';
+import FlowHistoryChart from './components/FlowHistoryChart';
+import RecentEventsList from './components/RecentEventsList';
+import TopViewPanel from './components/TopViewPanel';
+
 import { checkSession, logout } from './services/auth';
 import { wsService } from './services/websocket';
-import { fetchConfig } from './services/api';
-import {
-  ChevronDown,
-  ChevronUp,
-  BarChart3,
-  Loader2,
-} from 'lucide-react';
+import { fetchConfig, startVideoSource, uploadVideoFile, controlVideo } from './services/api';
+import { ChevronDown, ChevronUp, BarChart3, Loader2 } from 'lucide-react';
 
 export default function App() {
   // Authentication & Session State
@@ -28,12 +30,27 @@ export default function App() {
   // App Navigation View: 'app' | 'download'
   const [currentView, setCurrentView] = useState('app');
 
+  // Video Source & Flow
+  const [selectedSource, setSelectedSource] = useState('synthetic'); // 'synthetic' | 'file' | 'client' | 'rtsp'
+  const [sourceName, setSourceName] = useState('Demo Pedestrian Video');
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDeviceCameraActive, setIsDeviceCameraActive] = useState(false);
+  const [facingMode, setFacingMode] = useState('user');
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Modals & Panels
+  const [showLineEditModal, setShowLineEditModal] = useState(false);
+  const [showRTSPModal, setShowRTSPModal] = useState(false);
+  const [showCalibrationModal, setShowCalibrationModal] = useState(false);
+  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
+
+  // Telemetry & WebSocket
   const [telemetry, setTelemetry] = useState(null);
   const [wsStatus, setWsStatus] = useState('disconnected');
-  const [calibrationMode, setCalibrationMode] = useState(null); // 'line' | 'perspective' | null
-  const [showSystemInfo, setShowSystemInfo] = useState(false);
-  const [showCalibrationGuide, setShowCalibrationGuide] = useState(false);
-  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
+  const [activeStep, setActiveStep] = useState(3); // 1: Source, 2: Configure, 3: Analyze, 4: Results
+
+  const fileInputRef = useRef(null);
 
   // 1. Check Authentication on Mount
   useEffect(() => {
@@ -43,7 +60,6 @@ export default function App() {
           setIsAuth(true);
           setUserEmail(res.email || localStorage.getItem('visioneye_auth_email') || 'user@example.com');
         } else {
-          // Check local token as fallback
           const localToken = localStorage.getItem('visioneye_auth_token');
           const localEmail = localStorage.getItem('visioneye_auth_email');
           if (localToken && localEmail) {
@@ -100,32 +116,105 @@ export default function App() {
     }
   };
 
-  const handleSetCalibrationMode = (mode) => {
-    setCalibrationMode(mode);
-    wsService.send('set_calibration_mode', { mode });
+  // Switch Video Source: Demo Video
+  const handleSelectSource = async (type) => {
+    setSelectedSource(type);
+    try {
+      if (type === 'synthetic') {
+        setIsDeviceCameraActive(false);
+        setSourceName('Demo Pedestrian Video');
+        await startVideoSource('synthetic');
+        setActiveStep(3);
+      } else if (type === 'client') {
+        setIsDeviceCameraActive(true);
+        setSourceName('Device Camera');
+        await startVideoSource('client');
+        setActiveStep(3);
+      }
+    } catch (err) {
+      console.error('Switch source error:', err);
+    }
   };
 
-  // Initial session loading splash
+  // Trigger File Upload Picker
+  const handleOpenUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Video File Upload Handler
+  const handleFileChosen = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedSource('file');
+    setSourceName(file.name);
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      await uploadVideoFile(file, (pct) => setUploadProgress(pct));
+      setActiveStep(3);
+    } catch (err) {
+      console.error('File upload error:', err);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      e.target.value = '';
+    }
+  };
+
+  // Connect RTSP Camera
+  const handleConnectRTSP = async ({ cameraName, rtspUrl, username, password }) => {
+    setSelectedSource('rtsp');
+    setSourceName(cameraName || 'RTSP Camera');
+    try {
+      await startVideoSource('rtsp', rtspUrl, null, username, password);
+      setActiveStep(3);
+    } catch (err) {
+      console.error('Connect RTSP error:', err);
+    }
+  };
+
+  // Toggle Camera Facing Mode (Front vs Rear)
+  const handleToggleFacingMode = () => {
+    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
+  };
+
+  // Toggle Play/Pause
+  const handleTogglePlay = async () => {
+    const action = isPaused ? 'resume' : 'pause';
+    try {
+      await controlVideo(action);
+      setIsPaused(!isPaused);
+    } catch (e) {
+      console.error('Play/pause error:', e);
+    }
+  };
+
+  // Session loading splash
   if (authChecking) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: '#070a11',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--accent-cyan)',
-        fontFamily: 'var(--font-mono)',
-        fontSize: '0.9rem',
-        gap: '0.75rem',
-      }}>
-        <Loader2 size={24} className="animate-spin" />
-        <span>Initializing VisionEye...</span>
+      <div
+        style={{
+          minHeight: '100vh',
+          backgroundColor: '#f8fafc',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#2563eb',
+          gap: '0.75rem',
+        }}
+      >
+        <Loader2 size={32} className="animate-spin" />
+        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>
+          Loading VisionEye Analytics...
+        </span>
       </div>
     );
   }
 
-  // Gated Access: Must authenticate first
+  // Gated Access: OTP Login
   if (!isAuth) {
     return (
       <AuthView
@@ -139,6 +228,15 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Hidden File Input for Video Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChosen}
+        accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.m4v"
+        style={{ display: 'none' }}
+      />
+
       {/* Top Navigation & Status Bar */}
       <Header
         telemetry={telemetry}
@@ -147,12 +245,12 @@ export default function App() {
         onChangeView={setCurrentView}
         userEmail={userEmail}
         onLogout={handleLogout}
-        onOpenCalibrationGuide={() => setShowCalibrationGuide(true)}
+        onOpenCalibrationGuide={() => setShowCalibrationModal(true)}
         onToggleFullscreen={handleToggleFullscreen}
       />
 
       <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        {/* View 1: Direct Download Center */}
+        {/* View 1: Download Center */}
         {currentView === 'download' && (
           <DownloadView onBackToApp={() => setCurrentView('app')} />
         )}
@@ -160,131 +258,135 @@ export default function App() {
         {/* View 2: Video Analytics Workspace */}
         {currentView === 'app' && (
           <>
-            {/* Main Clean Workspace: Dominant Video + Streamlined Controls */}
-            <div className="dashboard-grid">
-              {/* Left Column: Live Video Feed + Compact KPI Strip */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <VideoPlayer
-                  telemetry={telemetry}
-                  calibrationMode={calibrationMode}
-                  onSetCalibrationMode={handleSetCalibrationMode}
-                />
+            {/* 1. Quick Video Source Pill Switcher */}
+            <VideoSourceSelector
+              selectedSource={selectedSource}
+              onSelectSource={handleSelectSource}
+              onOpenUpload={handleOpenUpload}
+              onOpenRTSP={() => setShowRTSPModal(true)}
+              uploading={uploading}
+              uploadProgress={uploadProgress}
+            />
 
-                {/* Compact Real-Time KPI Telemetry Bar */}
-                <div className="compact-kpi-bar glass-panel" style={{ borderRadius: '12px' }}>
-                  <div className="kpi-item">
-                    <span className="kpi-label">Inside</span>
-                    <span className="kpi-val" style={{ color: 'var(--accent-cyan)' }}>
-                      {telemetry?.occupancy ?? 0}
-                    </span>
-                  </div>
-                  <div className="kpi-divider" />
-                  <div className="kpi-item">
-                    <span className="kpi-label">Total IN</span>
-                    <span className="kpi-val" style={{ color: 'var(--accent-emerald)' }}>
-                      {telemetry?.total_in ?? 0}
-                    </span>
-                  </div>
-                  <div className="kpi-divider" />
-                  <div className="kpi-item">
-                    <span className="kpi-label">Total OUT</span>
-                    <span className="kpi-val" style={{ color: 'var(--accent-rose)' }}>
-                      {telemetry?.total_out ?? 0}
-                    </span>
-                  </div>
-                  <div className="kpi-divider" />
-                  <div className="kpi-item">
-                    <span className="kpi-label">Active Tracks</span>
-                    <span className="kpi-val" style={{ color: 'var(--accent-purple)' }}>
-                      {telemetry?.active_people ?? 0}
-                    </span>
-                  </div>
-                  <div className="kpi-divider" />
-                  <div className="kpi-item">
-                    <span className="kpi-label">AI Processing</span>
-                    <span className="kpi-val" style={{ color: 'var(--accent-amber)' }}>
-                      {telemetry?.fps ?? 0} <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>FPS</span>
-                    </span>
-                  </div>
-                  <div className="kpi-divider" />
-                  <div className="kpi-item">
-                    <span className="kpi-label">Latency</span>
-                    <span className="kpi-val" style={{ color: '#e2e8f0' }}>
-                      {telemetry?.detection_latency_ms ?? telemetry?.processing_latency_ms ?? 0}
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>ms</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
+            {/* 2. Key Foot-Traffic Counters (IN / OUT / INSIDE / TRACKED) */}
+            <AnalyticsSummary telemetry={telemetry} />
 
-              {/* Right Column: Video Source & Control Center */}
-              <div className="side-panel">
-                <ControlsPanel
-                  telemetry={telemetry}
-                  calibrationMode={calibrationMode}
-                  onSetCalibrationMode={handleSetCalibrationMode}
-                />
-              </div>
-            </div>
+            {/* 3. Responsive Video Analytics Viewport (With Direct Drag & Drop Pins) */}
+            <VideoPlayer
+              telemetry={telemetry}
+              onOpenLineEdit={() => setShowLineEditModal(true)}
+              onLineUpdated={(newStart, newEnd) => {
+                setTelemetry((prev) => ({
+                  ...prev,
+                  counting_line: { start: newStart, end: newEnd },
+                }));
+              }}
+              isDeviceCameraActive={isDeviceCameraActive}
+              onToggleFacingMode={handleToggleFacingMode}
+              facingMode={facingMode}
+              sourceName={sourceName}
+            />
 
-            {/* Collapsible Advanced Section: Radar Map, Event Feed & History */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {/* 4. Collapsible Advanced Settings, Calibration & Radar (Never clutters main UI) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
               <button
+                type="button"
                 onClick={() => setShowAdvancedTools((prev) => !prev)}
                 className="btn btn-secondary"
                 style={{
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '0.65rem 1.25rem',
+                  padding: '0.75rem 1.15rem',
                   width: '100%',
-                  borderRadius: '10px',
-                  fontSize: '0.82rem',
+                  borderRadius: '12px',
+                  fontSize: '0.86rem',
                   fontWeight: 600,
-                  background: 'rgba(13, 19, 33, 0.5)',
-                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: '#ffffff',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <BarChart3 size={15} style={{ color: 'var(--accent-cyan)' }} />
-                  <span>Advanced Analytics & Spatial Radar</span>
+                  <BarChart3 size={16} style={{ color: '#2563eb' }} />
+                  <span>Advanced Settings, Calibration & Radar</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-muted)' }}>
-                  <span>{showAdvancedTools ? 'Hide' : 'Show'}</span>
-                  {showAdvancedTools ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#64748b', fontSize: '0.8rem' }}>
+                  <span>{showAdvancedTools ? 'Hide' : 'Configure'}</span>
+                  {showAdvancedTools ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                 </div>
               </button>
 
               {showAdvancedTools && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '0.25rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {/* Settings Accordion (Counting Line, Calibration, Sensitivity) */}
+                  <SettingsAccordion
+                    telemetry={telemetry}
+                    onOpenLineEdit={() => setShowLineEditModal(true)}
+                    onStartPerspectiveCalibration={() => setShowCalibrationModal(true)}
+                    onConfigUpdated={() => fetchConfig().then(setTelemetry).catch(console.error)}
+                  />
+
+                  {/* Performance Diagnostics */}
+                  <PerformancePanel
+                    telemetry={telemetry}
+                    onResetCounters={() => fetchConfig().then(setTelemetry).catch(console.error)}
+                  />
+
+                  {/* Flow History & Spatial Radar */}
                   <FlowHistoryChart telemetry={telemetry} />
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
                     <TopViewPanel
                       telemetry={telemetry}
-                      onSetCalibrationMode={handleSetCalibrationMode}
+                      onSetCalibrationMode={() => setShowCalibrationModal(true)}
                     />
                     <RecentEventsList telemetry={telemetry} />
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Mobile Fixed Bottom Action Bar */}
+            <MobileActionBar
+              isPaused={isPaused}
+              onTogglePlay={handleTogglePlay}
+              onOpenLineEdit={() => setShowLineEditModal(true)}
+            />
           </>
         )}
       </main>
 
-      {/* Modals */}
-      {showSystemInfo && (
-        <SystemInfoModal
-          telemetry={telemetry}
-          onClose={() => setShowSystemInfo(false)}
-        />
-      )}
+      {/* ── Modals & Dialogs ── */}
+      {/* 1. Dedicated Counting Line Editor Modal */}
+      <CountingLineEditorModal
+        isOpen={showLineEditModal}
+        onClose={() => setShowLineEditModal(false)}
+        initialStart={telemetry?.counting_line?.start || [0.15, 0.72]}
+        initialEnd={telemetry?.counting_line?.end || [0.85, 0.48]}
+        onSaved={(newStart, newEnd) => {
+          setTelemetry((prev) => ({
+            ...prev,
+            counting_line: { start: newStart, end: newEnd },
+          }));
+        }}
+      />
 
-      {showCalibrationGuide && (
+      {/* 2. RTSP Network Camera Modal */}
+      <RTSPCameraModal
+        isOpen={showRTSPModal}
+        onClose={() => setShowRTSPModal(false)}
+        onConnect={handleConnectRTSP}
+      />
+
+      {/* 3. Camera Perspective Calibration Guide Modal */}
+      {showCalibrationModal && (
         <CalibrationModal
-          onClose={() => setShowCalibrationGuide(false)}
-          onStartLineCalibration={() => handleSetCalibrationMode('line')}
-          onStartPerspectiveCalibration={() => handleSetCalibrationMode('perspective')}
+          onClose={() => setShowCalibrationModal(false)}
+          onStartLineCalibration={() => {
+            setShowCalibrationModal(false);
+            setShowLineEditModal(true);
+          }}
+          onStartPerspectiveCalibration={() => {
+            setShowCalibrationModal(false);
+          }}
         />
       )}
     </div>

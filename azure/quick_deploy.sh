@@ -12,7 +12,7 @@ set -e
 CYAN='\033[0;36m'; GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'
 
 REMOTE_USER="azureuser"
-REMOTE_HOST="pvsairamsaketh.in"
+REMOTE_HOST="${2:-pvsairamsaketh.in}"
 PROJ="$(cd "$(dirname "$0")/.." && pwd)"
 
 SSH_KEY_ARG=""

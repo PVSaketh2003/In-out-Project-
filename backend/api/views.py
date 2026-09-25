@@ -9,6 +9,8 @@ import logging
 import base64
 import cv2
 import numpy as np
+import socket
+import urllib.parse
 from django.http import StreamingHttpResponse, JsonResponse
 from django.conf import settings
 from rest_framework.views import APIView
@@ -88,9 +90,20 @@ class VideoSourceControlView(APIView):
                 source_type = request.data.get("source_type", "synthetic")
                 source_path = request.data.get("source_path", None)
                 camera_index = request.data.get("camera_index", None)
+                username = request.data.get("username", None)
+                password = request.data.get("password", None)
 
                 if source_type == "webcam":
                     source_path = int(camera_index if camera_index is not None else 0)
+                elif source_type == "rtsp" and source_path:
+                    # Embed credentials if provided and not already in URL
+                    if username and "@" not in source_path:
+                        parsed = urllib.parse.urlparse(source_path)
+                        auth = f"{urllib.parse.quote(username)}:{urllib.parse.quote(password or '')}@"
+                        netloc = f"{auth}{parsed.hostname}"
+                        if parsed.port:
+                            netloc += f":{parsed.port}"
+                        source_path = urllib.parse.urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
 
                 pipeline.start(source_type=source_type, source_path=source_path)
                 return Response({"status": "started", "source": pipeline.video_source.get_info()})
@@ -111,6 +124,123 @@ class VideoSourceControlView(APIView):
         except Exception as e:
             logger.error(f"[VideoSourceControlView] Error handling action '{action}': {e}", exc_info=True)
             return Response({"status": "error", "message": str(e), "source": pipeline.video_source.get_info()}, status=status.HTTP_200_OK)
+
+
+class TestRTSPConnectionView(APIView):
+    """
+    Validates RTSP camera connectivity on local network/LAN without exposing raw errors.
+    POST /api/video/test-rtsp
+    """
+
+    def post(self, request):
+        raw_url = request.data.get("rtsp_url", "").strip()
+        username = request.data.get("username", "").strip()
+        password = request.data.get("password", "").strip()
+        timeout_sec = float(request.data.get("timeout", 3.0))
+
+        if not raw_url:
+            return Response({
+                "status": "failed",
+                "state": "invalid_url",
+                "message": "Please enter an RTSP stream URL (e.g., rtsp://192.168.1.100:554/stream).",
+                "technical_details": None,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not raw_url.lower().startswith("rtsp://"):
+            return Response({
+                "status": "failed",
+                "state": "invalid_url",
+                "message": "Invalid protocol. Camera stream URL must begin with 'rtsp://'.",
+                "technical_details": {"protocol": raw_url.split(":")[0]},
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            parsed = urllib.parse.urlparse(raw_url)
+            host = parsed.hostname
+            port = parsed.port or 554
+
+            if not host:
+                return Response({
+                    "status": "failed",
+                    "state": "invalid_url",
+                    "message": "Could not identify camera IP address or hostname from the URL.",
+                    "technical_details": {"raw_url": raw_url},
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Build full authenticated URL for stream test
+            if username and "@" not in raw_url:
+                auth = f"{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
+                netloc = f"{auth}{host}:{port}"
+                full_test_url = urllib.parse.urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+            else:
+                full_test_url = raw_url
+
+            # 1. Non-blocking Socket LAN Connectivity Ping
+            t_start = time.perf_counter()
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(min(timeout_sec, 2.5))
+            try:
+                s.connect((host, port))
+                s.close()
+                latency_ms = round((time.perf_counter() - t_start) * 1000.0, 1)
+            except socket.timeout:
+                return Response({
+                    "status": "failed",
+                    "state": "timeout",
+                    "message": "Camera connection timed out. Make sure your camera is powered on and connected to the same Wi-Fi/network.",
+                    "technical_details": {"host": host, "port": port, "timeout_seconds": timeout_sec},
+                })
+            except (socket.error, ConnectionRefusedError, OSError) as sock_err:
+                return Response({
+                    "status": "failed",
+                    "state": "unreachable",
+                    "message": "Unable to reach camera on the local network. Verify the IP address and make sure both devices share the same LAN.",
+                    "technical_details": {"host": host, "port": port, "error": str(sock_err)},
+                })
+
+            # 2. Test Stream Decoder via OpenCV FFmpeg with TCP Transport
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp;timeout;3000000"
+            test_cap = cv2.VideoCapture(full_test_url, cv2.CAP_FFMPEG)
+            is_opened = test_cap.isOpened()
+
+            res_w, res_h, stream_fps = 0, 0, 0.0
+            if is_opened:
+                ret, frame = test_cap.read()
+                if ret and frame is not None:
+                    res_h, res_w = frame.shape[:2]
+                    stream_fps = round(test_cap.get(cv2.CAP_PROP_FPS) or 25.0, 1)
+                test_cap.release()
+
+            if not is_opened:
+                return Response({
+                    "status": "failed",
+                    "state": "auth_failed" if (username or password) else "failed",
+                    "message": "Camera reached, but video stream could not be opened. Check your username, password, or stream path.",
+                    "technical_details": {"host": host, "port": port, "latency_ms": latency_ms, "transport": "TCP"},
+                })
+
+            return Response({
+                "status": "connected",
+                "state": "connected",
+                "message": "Camera detected on local network. Live stream ready for analytics.",
+                "technical_details": {
+                    "host": host,
+                    "port": port,
+                    "latency_ms": latency_ms,
+                    "resolution": f"{res_w}x{res_h}" if res_w > 0 else "Auto",
+                    "fps": stream_fps if stream_fps > 0 else 25.0,
+                    "transport": "TCP",
+                },
+            })
+
+        except Exception as ex:
+            logger.error(f"[TestRTSPConnectionView] Unexpected error: {ex}", exc_info=True)
+            return Response({
+                "status": "failed",
+                "state": "failed",
+                "message": "Unable to connect to the camera. Make sure your camera and VisionEye device are connected to the same Wi-Fi/network.",
+                "technical_details": {"error": str(ex)},
+            })
 
 
 class VideoUploadView(APIView):

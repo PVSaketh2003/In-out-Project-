@@ -55,3 +55,5 @@ backend/downloads/*.zip
 backend/downloads/*.exe
 backend/downloads/*.AppImage
 backend/downloads/*.apk
+yolo11n.onnx
+backend/api/implementation.md

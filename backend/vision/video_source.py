@@ -144,18 +144,19 @@ class VideoSourceManager:
                         return True
 
                 elif self.source_type == "rtsp":
-                    # Open RTSP stream with FFMPEG
-                    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp;timeout;5000000"
+                    # Open RTSP stream with FFMPEG using TCP transport for packet integrity
+                    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp;timeout;5000000"
                     self.cap = cv2.VideoCapture(str(source_path), cv2.CAP_FFMPEG)
+                    safe_url = re.sub(r':([^@]+)@', ':****@', str(source_path)) if source_path else "rtsp"
                     if self.cap.isOpened():
                         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1280)
                         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 720)
                         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
                         self.is_running = True
-                        logger.info(f"[VideoSourceManager] RTSP stream connected: {source_path}")
+                        logger.info(f"[VideoSourceManager] RTSP stream connected: {safe_url} ({self.width}x{self.height} @ {self.fps} FPS)")
                         return True
                     else:
-                        logger.error(f"[VideoSourceManager] Failed to connect to RTSP stream: {source_path}")
+                        logger.error(f"[VideoSourceManager] Failed to connect to RTSP stream: {safe_url}")
                         self.source_type = "synthetic"
                         self.is_running = True
                         return True

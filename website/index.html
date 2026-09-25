@@ -16,12 +16,12 @@
   
   <!-- PWA Manifest & Mobile Web App Tags -->
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#00F0FF">
+  <meta name="theme-color" content="#2563EB">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VisionEye">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192' fill='%23060913'><rect width='192' height='192' rx='36' fill='%23060913'/><circle cx='96' cy='96' r='40' stroke='%2300F0FF' stroke-width='12' fill='none'/><circle cx='96' cy='96' r='16' fill='%2300F0FF'/><path d='M24 96s28-48 72-48 72 48 72 48-28 48-72 48-72-48-72-48Z' stroke='%2300F0FF' stroke-width='10' fill='none'/></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192' fill='%23FFFFFF'><rect width='192' height='192' rx='36' fill='%23FFFFFF'/><circle cx='96' cy='96' r='40' stroke='%232563EB' stroke-width='12' fill='none'/><circle cx='96' cy='96' r='16' fill='%232563EB'/><path d='M24 96s28-48 72-48 72 48 72 48-28 48-72 48-72-48-72-48Z' stroke='%232563EB' stroke-width='10' fill='none'/></svg>">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -109,7 +109,7 @@
   </header>
 
   <!-- Multi-Platform Download Matrix Section -->
-  <section class="section" id="all-downloads" style="background: rgba(13, 19, 33, 0.4); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
+  <section class="section section-alt" id="all-downloads">
     <div class="container">
       <div class="section-header">
         <span class="section-tag">Cross-Platform Availability</span>
@@ -119,7 +119,7 @@
 
       <div class="platform-grid">
         <!-- Android & iOS Mobile (Featured First) -->
-        <div class="platform-card" style="border-color: rgba(0, 240, 255, 0.5); background: linear-gradient(180deg, rgba(0, 240, 255, 0.08) 0%, rgba(13, 19, 33, 0.7) 100%);">
+        <div class="platform-card featured-card">
           <div>
             <div class="platform-icon">📱</div>
             <h3 class="platform-name">iPhone, iPad & Android</h3>
@@ -212,7 +212,7 @@
   </section>
 
   <!-- Detailed System Architecture Section -->
-  <section class="section" id="architecture" style="background: rgba(11, 15, 25, 0.7); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
+  <section class="section" id="architecture">
     <div class="container">
       <div class="section-header">
         <span class="section-tag">System Design</span>
@@ -222,7 +222,7 @@
 
       <!-- Architecture Diagram Graphic -->
       <div class="hero-preview" style="margin-bottom: 3.5rem;">
-        <div class="hero-preview-inner" style="border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5), var(--shadow-glow-cyan);">
+        <div class="hero-preview-inner">
           <img src="architecture.png?v=2.2" alt="VisionEye System Architecture Flowchart" style="width: 100%; height: auto; display: block; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PVSaketh2003/In-out-Project-/main/architecture.png?v=2.2'">
         </div>
       </div>
@@ -263,7 +263,7 @@
   </section>
 
   <!-- Key Features Section -->
-  <section class="section" id="features">
+  <section class="section section-alt" id="features">
     <div class="container">
       <div class="section-header">
         <span class="section-tag">Core Capabilities</span>
@@ -324,7 +324,7 @@
   </section>
 
   <!-- Step-by-Step Installation & Quick Start Guide -->
-  <section class="section" id="install" style="background: rgba(13, 19, 33, 0.4); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
+  <section class="section" id="install">
     <div class="container">
       <div class="section-header">
         <span class="section-tag">Quick Start & Setup</span>
@@ -367,7 +367,7 @@
               <div class="step-text">
                 <h4>(Optional) Add to Your Mobile Home Screen</h4>
                 <p>You can turn VisionEye into a full-screen standalone app icon on your phone:</p>
-                <div class="tip-card" style="margin-top: 0.75rem; background: rgba(0, 240, 255, 0.06); border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.84rem; line-height: 1.6; color: var(--text-main);">
+                <div class="tip-card">
                   🍏 <strong>On iPhone/iPad (Safari):</strong> Tap the <strong>Share button (⎋ with arrow)</strong> at bottom ➔ Tap <strong>"Add to Home Screen"</strong>.<br>
                   🤖 <strong>On Android (Chrome):</strong> Tap the <strong>3 dots menu (⋮)</strong> at top right ➔ Tap <strong>"Add to Home screen"</strong> or <strong>"Install app"</strong>.
                 </div>
@@ -398,7 +398,7 @@
               <div class="step-text">
                 <h4>Launch and Start Tracking</h4>
                 <p>Open VisionEye from your Applications folder or Spotlight Search. Grant camera permissions or upload any video clip to begin real-time foot-traffic analytics.</p>
-                <div class="tip-card" style="margin-top: 0.75rem; background: rgba(0, 240, 255, 0.08); border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.84rem; line-height: 1.5;">
+                <div class="tip-card">
                   💡 <strong>First Launch on macOS:</strong> If prompted on first launch, right-click on VisionEye in Applications and select <strong>Open</strong> to confirm.
                 </div>
               </div>
@@ -421,7 +421,7 @@
               <div class="step-text">
                 <h4>Run the Setup Wizard</h4>
                 <p>Double-click the installer to start the step-by-step setup wizard.</p>
-                <div class="tip-card" style="margin-top: 0.75rem; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.84rem; line-height: 1.5; color: #FCD34D;">
+                <div class="tip-card tip-card-warning">
                   💡 <strong>Windows SmartScreen Tip:</strong> If prompted with <em>"Windows protected your PC"</em>, click <strong>"More info"</strong> and select <strong>"Run anyway"</strong>.
                 </div>
               </div>
@@ -467,7 +467,7 @@
   </section>
 
   <!-- System Specifications Table -->
-  <section class="section" id="specs">
+  <section class="section section-alt" id="specs">
     <div class="container">
       <div class="section-header">
         <span class="section-tag">Compatibility</span>
@@ -517,7 +517,7 @@
   </section>
 
   <!-- Changelog / Release Updates Section -->
-  <section class="section" id="changelog" style="background: rgba(13, 19, 33, 0.4); border-top: 1px solid var(--border-subtle);">
+  <section class="section" id="changelog">
     <div class="container">
       <div class="section-header">
         <span class="section-tag">Release Notes</span>
@@ -526,10 +526,10 @@
 
       <div class="install-box" style="max-width: 760px;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.75rem;">
-          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--accent-cyan);">VisionEye v1.0.0 — Production Cloud Release</h3>
-          <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-emerald);">Live 24/7 Deployment</span>
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--accent-blue);">VisionEye v1.0.0 — Production Cloud Release</h3>
+          <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent-emerald); font-weight: 600;">Live 24/7 Deployment</span>
         </div>
-        <ul style="list-style: none; font-size: 0.88rem; color: var(--text-muted); line-height: 1.8;">
+        <ul style="list-style: none; font-size: 0.9rem; color: var(--text-muted); line-height: 1.8;">
           <li>✨ <strong>Mobile Camera Integration</strong>: Real-time smartphone front & rear camera streaming with live AI bounding boxes.</li>
           <li>⚡ <strong>1-Click Auto-Calibrate</strong>: Instant ground floor perspective fitting with camera angle presets.</li>
           <li>🔄 <strong>Continuous Video Looping</strong>: Seamless EOF auto-reopen playback without stream freezing.</li>
@@ -542,11 +542,11 @@
   </section>
 
   <!-- Fallback / Platform Modal -->
-  <div id="platformModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 15, 0.85); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center; padding: 1.5rem;">
-    <div style="background: #0D1321; border: 1px solid var(--border-cyan); border-radius: 16px; max-width: 520px; width: 100%; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.8), var(--shadow-glow-cyan); position: relative;">
-      <button id="closeModalBtn" style="position: absolute; top: 1rem; right: 1rem; background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">&times;</button>
+  <div id="platformModal" class="modal-backdrop">
+    <div class="modal-content">
+      <button id="closeModalBtn" class="modal-close-btn">&times;</button>
       <div id="modalIcon" style="font-size: 2.5rem; margin-bottom: 0.75rem;">📱</div>
-      <h3 id="modalTitle" style="font-size: 1.3rem; font-weight: 800; color: #FFFFFF; margin-bottom: 0.75rem;">Launch VisionEye Web App</h3>
+      <h3 id="modalTitle" style="font-size: 1.3rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.75rem;">Launch VisionEye Web App</h3>
       <p id="modalBody" style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1.5rem;">
         VisionEye is ready to run immediately in your browser with full camera and AI analytics support — zero installation required!
       </p>
@@ -565,8 +565,8 @@
   <footer class="footer">
     <div class="container footer-content">
       <div>
-        <strong style="color: #fff; font-size: 0.95rem;">VisionEye Foot-Traffic Analytics</strong>
-        <div style="margin-top: 0.25rem;">Engineered by <strong>P V Sairam Saketh</strong> &bull; Hosted on <a href="https://pvsairamsaketh.in" style="color: var(--accent-cyan); text-decoration: none;">pvsairamsaketh.in</a></div>
+        <strong>VisionEye Foot-Traffic Analytics</strong>
+        <div style="margin-top: 0.25rem;">Engineered by <strong>P V Sairam Saketh</strong> &bull; Hosted on <a href="https://pvsairamsaketh.in" style="color: var(--accent-blue); text-decoration: none;">pvsairamsaketh.in</a></div>
       </div>
 
       <div class="footer-links">

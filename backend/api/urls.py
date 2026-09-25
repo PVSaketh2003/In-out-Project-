@@ -14,6 +14,7 @@ urlpatterns = [
     path("video/frame", views.video_single_frame, name="api-video-frame"),
     path("video/client_frame", views.ClientFramePushView.as_view(), name="api-video-client-frame"),
     path("video/upload", views.VideoUploadView.as_view(), name="api-video-upload"),
+    path("video/test-rtsp", views.TestRTSPConnectionView.as_view(), name="api-video-test-rtsp"),
     path("video/<str:action>", views.VideoSourceControlView.as_view(), name="api-video-control"),
     path("config", views.ConfigView.as_view(), name="api-config"),
     path("counting-line", views.CountingLineView.as_view(), name="api-counting-line"),

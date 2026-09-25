@@ -1,1232 +1,693 @@
-import React, {
-  useRef,
-  useState,
-  useEffect,
-  useCallback,
-  memo,
-} from 'react';
-import {
-  Camera,
-  RefreshCw,
-  CheckCircle2,
-  SwitchCamera,
-  AlertCircle,
-  Play,
-} from 'lucide-react';
-import {
-  updateCountingLine,
-  updatePerspective,
-  pushClientFrame,
-} from '../services/api';
-import { wsService } from '../services/websocket';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Camera, SwitchCamera, Play, Pause, Sliders, AlertCircle, RefreshCw, Loader2, Check, ArrowUpDown, Sparkles } from 'lucide-react';
+import { pushClientFrame, controlVideo, updateCountingLine } from '../services/api';
 
-// ─── Simple global error logger ──────────────────────────────────────────────
-const _errorLogs = [];
-const _errorListeners = new Set();
-
-export function logError(source, msg, detail) {
-  const entry = {
-    id: Date.now() + Math.random(),
-    time: new Date().toLocaleTimeString(),
-    source,
-    msg: String(msg),
-    detail: detail ? String(detail) : '',
-  };
-  _errorLogs.unshift(entry);
-  if (_errorLogs.length > 30) _errorLogs.pop();
-  _errorListeners.forEach((fn) => fn([..._errorLogs]));
-}
-
-export function useErrorLog() {
-  const [logs, setLogs] = useState([..._errorLogs]);
-  useEffect(() => {
-    _errorListeners.add(setLogs);
-    return () => _errorListeners.delete(setLogs);
-  }, []);
-  return [
-    logs,
-    () => {
-      _errorLogs.length = 0;
-      _errorListeners.forEach((fn) => fn([]));
-    },
-  ];
-}
-
-// ─── Stream URL helper ────────────────────────────────────────────────────────
-function getStreamSrc() {
-  const ts = Date.now();
-  const base =
-    window.location.port === '5173'
-      ? `${window.location.protocol}//${window.location.hostname}:8000`
-      : '';
-  return `${base}/api/video/feed?t=${ts}`;
-}
-
-// ─── Safe cross-platform play() ───────────────────────────────────────────────
-// Returns: 'playing' | 'blocked' | 'error'
-async function safePlay(videoEl) {
-  if (!videoEl) return 'error';
-  try {
-    const promise = videoEl.play();
-    if (promise !== undefined) await promise;
-    return 'playing';
-  } catch (err) {
-    if (
-      err.name === 'NotAllowedError' ||
-      err.name === 'AbortError'
-    ) {
-      // Autoplay blocked (common on iOS/Android/Chrome without user gesture)
-      return 'blocked';
-    }
-    // NotSupportedError or other — still return blocked so UI shows play button
-    console.warn('[VideoPlayer] play() error:', err.name, err.message);
-    return 'blocked';
-  }
-}
-
-// ─── Stable HUD metrics (updated via DOM, not React state) ───────────────────
-const MetricsHUD = memo(function MetricsHUD({ telemetry, isLocalMode }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        gap: '0.4rem',
-        pointerEvents: 'none',
-      }}
-    >
-      <div
-        className="hud-tag"
-        style={{
-          background: 'rgba(16,185,129,0.2)',
-          border: '1px solid #10B981',
-          color: '#10B981',
-          fontWeight: 700,
-        }}
-      >
-        IN: {telemetry?.total_in ?? 0}
-      </div>
-      <div
-        className="hud-tag"
-        style={{
-          background: 'rgba(244,63,94,0.2)',
-          border: '1px solid #F43F5E',
-          color: '#F43F5E',
-          fontWeight: 700,
-        }}
-      >
-        OUT: {telemetry?.total_out ?? 0}
-      </div>
-      <div
-        className="hud-tag"
-        style={{
-          background: 'rgba(0,240,255,0.2)',
-          border: '1px solid #00F0FF',
-          color: '#00F0FF',
-          fontWeight: 700,
-        }}
-      >
-        INSIDE: {telemetry?.occupancy ?? 0}
-      </div>
-      {isLocalMode && (
-        <div
-          className="hud-tag"
-          style={{
-            background: 'rgba(245,158,11,0.2)',
-            border: '1px solid #F59E0B',
-            color: '#F59E0B',
-            fontSize: '0.68rem',
-          }}
-        >
-          ⚡ Local Preview
-        </div>
-      )}
-    </div>
-  );
-});
-
-// ─── Main VideoPlayer ─────────────────────────────────────────────────────────
 export default function VideoPlayer({
   telemetry,
-  calibrationMode,
-  onSetCalibrationMode,
+  onOpenLineEdit,
+  onLineUpdated,
+  isDeviceCameraActive,
+  onToggleFacingMode,
+  facingMode,
+  sourceName = 'Demo Pedestrian Stream',
 }) {
-  // ── Refs (never in state — no re-renders from these) ──────────────────────
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
+  const imgRef = useRef(null);
 
-  // The stable local <video> element for uploaded file preview
-  const localVideoRef = useRef(null);
-
-  // The MJPEG <img> element for live backend stream
-  const mjpegImgRef = useRef(null);
-
-  // For device (webcam) capture
-  const deviceVideoRef = useRef(null);
-  const offscreenCanvasRef = useRef(null);
-
-  // Object URL management — tracked in ref, not state
-  const objectUrlRef = useRef(null);
-
-  // MJPEG reconnect timer
-  const mjpegRetryRef = useRef(null);
-  const mjpegRetryCountRef = useRef(0);
-
-  // ── React state (only what actually needs to trigger UI changes) ──────────
-  const [displayMode, setDisplayMode] = useState('stream'); // 'stream' | 'local' | 'device'
-  const [playBlocked, setPlayBlocked] = useState(false);    // autoplay blocked → show play button
   const [streamError, setStreamError] = useState(false);
-  const [cameraError, setCameraError] = useState('');
-  const [isDeviceCameraActive, setIsDeviceCameraActive] = useState(false);
-  const [facingMode, setFacingMode] = useState('user');
-  const [sourceName, setSourceName] = useState('Live Stream');
+  const [streamLoading, setStreamLoading] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [streamKey, setStreamKey] = useState(Date.now());
 
-  // Calibration overlay state
-  const [activeHandle, setActiveHandle] = useState(null);
-  const [localLine, setLocalLine] = useState(null);
-  const [localPoints, setLocalPoints] = useState(null);
+  // Interactive Line Drag & Drop State
+  const initialLine = telemetry?.counting_line || { start: [0.15, 0.72], end: [0.85, 0.48] };
+  const [lineStart, setLineStart] = useState(initialLine.start || [0.15, 0.72]);
+  const [lineEnd, setLineEnd] = useState(initialLine.end || [0.85, 0.48]);
+  const [activePin, setActivePin] = useState(null); // 'A' | 'B' | null
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [saveSuccessNotice, setSaveSuccessNotice] = useState(false);
+  const isDraggingRef = useRef(false);
 
-  // ── Sync calibration data from telemetry ─────────────────────────────────
+  // Sync with incoming telemetry only when user is not dragging
   useEffect(() => {
-    if (telemetry?.counting_line && !localLine)
-      setLocalLine(telemetry.counting_line);
-    if (telemetry?.perspective_points && !localPoints)
-      setLocalPoints(telemetry.perspective_points);
-  }, [telemetry]);
-
-  // ── Update source name display from telemetry ─────────────────────────────
-  useEffect(() => {
-    if (isDeviceCameraActive) {
-      setSourceName(
-        `Camera (${facingMode === 'user' ? 'Front' : 'Rear'})`
-      );
-    } else if (telemetry?.source?.source_type === 'file') {
-      const name =
-        telemetry.source.source_path?.split('/').pop() || 'Uploaded Video';
-      setSourceName(`File: ${name}`);
-    } else if (telemetry?.source?.source_type === 'synthetic') {
-      setSourceName('Demo Stream');
-    } else {
-      setSourceName('Live Stream');
+    if (!isDraggingRef.current && telemetry?.counting_line) {
+      if (telemetry.counting_line.start) setLineStart(telemetry.counting_line.start);
+      if (telemetry.counting_line.end) setLineEnd(telemetry.counting_line.end);
     }
-  }, [telemetry, isDeviceCameraActive, facingMode]);
+  }, [telemetry?.counting_line]);
 
-  // ── Object URL helpers ────────────────────────────────────────────────────
-  const revokeCurrentObjectUrl = useCallback(() => {
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
-  }, []);
-
-  // ── Local video: attach file and play immediately ─────────────────────────
-  const playLocalFile = useCallback(
-    async (file) => {
-      const vid = localVideoRef.current;
-      if (!vid) return;
-
-      // Revoke old URL first (only now, not before)
-      revokeCurrentObjectUrl();
-
-      // Create fresh object URL
-      const url = URL.createObjectURL(file);
-      objectUrlRef.current = url;
-
-      setSourceName(`${file.name}`);
-      setPlayBlocked(false);
-      setDisplayMode('local');
-
-      // Reset video element cleanly
-      vid.pause();
-      vid.removeAttribute('src');
-      vid.load(); // Reset internal state
-
-      // Attach URL and configure for all platforms
-      vid.src = url;
-      vid.muted = true;   // Required for autoplay on all platforms
-      vid.loop = true;
-      vid.playsInline = true; // Critical for iOS
-      vid.controls = false;
-
-      // Wait for enough data to play (cross-platform safe)
-      await new Promise((resolve) => {
-        const onCanPlay = () => {
-          vid.removeEventListener('canplay', onCanPlay);
-          vid.removeEventListener('error', onCanPlay);
-          resolve();
-        };
-        vid.addEventListener('canplay', onCanPlay, { once: true });
-        vid.addEventListener('error', onCanPlay, { once: true });
-        // Kick load
-        vid.load();
-      });
-
-      const result = await safePlay(vid);
-      if (result === 'blocked') {
-        setPlayBlocked(true);
-      } else {
-        setPlayBlocked(false);
-      }
-
-      logError('VideoPlayer', `Local preview started: ${file.name}`, '');
-    },
-    [revokeCurrentObjectUrl]
-  );
-
-  // ── MJPEG stream management ───────────────────────────────────────────────
-  const clearMjpegRetry = useCallback(() => {
-    if (mjpegRetryRef.current) {
-      clearTimeout(mjpegRetryRef.current);
-      mjpegRetryRef.current = null;
-    }
-  }, []);
-
-  const lastConnectTimeRef = useRef(0);
-  const connectMjpegStream = useCallback(() => {
-    const now = Date.now();
-    if (now - lastConnectTimeRef.current < 1000) {
-      return;
-    }
-    lastConnectTimeRef.current = now;
-    const img = mjpegImgRef.current;
-    if (!img) return;
-    clearMjpegRetry();
-    setStreamError(false);
-    img.src = getStreamSrc();
-  }, [clearMjpegRetry]);
-
-  const scheduleMjpegRetry = useCallback(() => {
-    clearMjpegRetry();
-    const count = mjpegRetryCountRef.current;
-    // Exponential backoff: 1s, 2s, 4s, 8s, max 15s
-    const delay = Math.min(1000 * Math.pow(2, count), 15000);
-    mjpegRetryCountRef.current += 1;
-    mjpegRetryRef.current = setTimeout(() => {
-      connectMjpegStream();
-    }, delay);
-  }, [clearMjpegRetry, connectMjpegStream]);
-
-  const reloadStream = useCallback(() => {
-    mjpegRetryCountRef.current = 0;
-    connectMjpegStream();
-  }, [connectMjpegStream]);
-
-  // Reset retry counter on success
-  const handleStreamLoad = useCallback(() => {
-    mjpegRetryCountRef.current = 0;
-    setStreamError(false);
-  }, []);
-
-  const handleStreamError = useCallback(() => {
-    setStreamError(true);
-    scheduleMjpegRetry();
-  }, [scheduleMjpegRetry]);
-
-  // ── Switch back to stream mode (when backend is ready) ───────────────────
-  const switchToStream = useCallback(() => {
-    setDisplayMode('stream');
-    reloadStream();
-  }, [reloadStream]);
-
-  // ── Custom event listeners ────────────────────────────────────────────────
-  useEffect(() => {
-    // visioneye:video_selected — fired by ControlsPanel with the File immediately
-    const handleVideoSelected = async (e) => {
-      const { file } = e.detail || {};
-      if (!file) return;
-      setIsDeviceCameraActive(false);
-      stopDeviceCamera();
-      await playLocalFile(file);
-    };
-
-    // visioneye:stream_reload — fired after backend confirms source is ready
-    const handleStreamReload = () => {
-      // If we're in local mode, don't immediately switch — wait a bit for backend
-      // If already in stream mode, just reload
-      if (displayMode === 'stream') {
-        reloadStream();
-      }
-      // In local mode, we switch after backend has had time to start
-      // (controlled by ControlsPanel which fires this after upload resolves)
-    };
-
-    // visioneye:stream_ready — fires when upload+backend processing confirmed
-    const handleStreamReady = () => {
-      switchToStream();
-    };
-
-    // visioneye:device_camera_toggle
-    const handleCameraToggle = (e) => {
-      if (e.detail?.active) startDeviceCamera();
-      else stopDeviceCamera();
-    };
-
-    window.addEventListener('visioneye:video_selected', handleVideoSelected);
-    window.addEventListener('visioneye:stream_reload', handleStreamReload);
-    window.addEventListener('visioneye:stream_ready', handleStreamReady);
-    window.addEventListener('visioneye:device_camera_toggle', handleCameraToggle);
-
-    return () => {
-      window.removeEventListener('visioneye:video_selected', handleVideoSelected);
-      window.removeEventListener('visioneye:stream_reload', handleStreamReload);
-      window.removeEventListener('visioneye:stream_ready', handleStreamReady);
-      window.removeEventListener('visioneye:device_camera_toggle', handleCameraToggle);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayMode, playLocalFile, reloadStream, switchToStream]);
-
-  // ── Telemetry source change → reload stream only on actual source change ──
-  const prevSourceRef = useRef(null);
-  useEffect(() => {
-    const sType = telemetry?.source?.source_type;
-    const sPath = telemetry?.source?.source_path;
-    if (!sType) return;
-    const current = `${sType}|${sPath || ''}`;
-    if (prevSourceRef.current && prevSourceRef.current !== current && displayMode === 'stream') {
-      reloadStream();
-    }
-    prevSourceRef.current = current;
-  }, [telemetry?.source?.source_type, telemetry?.source?.source_path, displayMode, reloadStream]);
-
-  // ── Cleanup on unmount ────────────────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      revokeCurrentObjectUrl();
-      clearMjpegRetry();
-      stopDeviceCamera();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Initial stream connect ────────────────────────────────────────────────
-  useEffect(() => {
-    connectMjpegStream();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Device Camera ─────────────────────────────────────────────────────────
-  const startDeviceCamera = async (overrideFacing) => {
-    setCameraError('');
-    const targetFacing = overrideFacing || facingMode;
-
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Camera requires HTTPS or localhost.');
-      }
-      stopDeviceCamera();
-
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: targetFacing ? { ideal: targetFacing } : undefined,
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-          },
-          audio: false,
-        });
-      } catch {
-        // Fallback: no facingMode constraint (works on all webcams)
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false,
-        });
-      }
-
-      const vid = deviceVideoRef.current;
-      if (vid) {
-        vid.srcObject = stream;
-        vid.muted = true;
-        vid.playsInline = true;
-        const result = await safePlay(vid);
-        if (result === 'blocked') {
-          logError('Camera', 'Camera autoplay blocked', '');
-        }
-      }
-
-      setDisplayMode('device');
-      setIsDeviceCameraActive(true);
-    } catch (err) {
-      const isPermission =
-        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
-      const msg = isPermission
-        ? 'Camera permission denied. Please allow camera access.'
-        : `Camera unavailable: ${err.message || 'No camera found.'}`;
-      setCameraError(msg);
-      logError('Camera', msg, err.name);
-      setIsDeviceCameraActive(false);
-    }
-  };
-
-  const stopDeviceCamera = () => {
-    const vid = deviceVideoRef.current;
-    if (vid?.srcObject) {
-      try {
-        vid.srcObject.getTracks().forEach((t) => t.stop());
-      } catch {}
-      vid.srcObject = null;
-    }
-    setIsDeviceCameraActive(false);
-  };
-
-  const handleToggleFacingMode = () => {
-    const next = facingMode === 'environment' ? 'user' : 'environment';
-    setFacingMode(next);
-    startDeviceCamera(next);
-  };
-
-  // ── Frame push loop (Device Camera → AI Backend) ──────────────────────────
-  useEffect(() => {
-    if (!isDeviceCameraActive) return;
-    let busy = false;
-    const iv = setInterval(() => {
-      if (busy || !deviceVideoRef.current || !offscreenCanvasRef.current)
-        return;
-      const vid = deviceVideoRef.current;
-      if (vid.readyState < 2 || vid.videoWidth === 0) return;
-      const canvas = offscreenCanvasRef.current;
-      canvas.width = 640;
-      canvas.height = 480;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(vid, 0, 0, 640, 480);
-      const b64 = canvas.toDataURL('image/jpeg', 0.65);
-      busy = true;
-      pushClientFrame(b64)
-        .catch((e) => logError('FramePush', 'Frame push error', e.message))
-        .finally(() => {
-          busy = false;
-        });
-    }, 66); // ~15 FPS
-    return () => clearInterval(iv);
-  }, [isDeviceCameraActive]);
-
-  // ── Manual play button (when autoplay is blocked) ─────────────────────────
-  const handleManualPlay = async () => {
-    const vid = localVideoRef.current;
-    if (!vid) return;
-    const result = await safePlay(vid);
-    if (result === 'playing') setPlayBlocked(false);
-  };
-
-  // ── Canvas calibration overlay & interaction ─────────────────────────────
-  const localLineRef = useRef(null);
-  localLineRef.current = localLine;
-  const localPointsRef = useRef(null);
-  localPointsRef.current = localPoints;
-  const dragOffsetRef = useRef(null);
-
-  // Sync state from telemetry when not actively dragging
-  useEffect(() => {
-    if (telemetry?.counting_line && !activeHandle) {
-      setLocalLine(telemetry.counting_line);
-    }
-    if (telemetry?.perspective_points && !activeHandle) {
-      setLocalPoints(telemetry.perspective_points);
-    }
-  }, [telemetry?.counting_line, telemetry?.perspective_points, activeHandle]);
-
-  const getCanvasCoords = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return [
-      Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
-      Math.max(0, Math.min(1, (clientY - rect.top) / rect.height)),
-    ];
-  };
-
-  // Cursor hover feedback
-  const handleCanvasMouseMove = (e) => {
-    if (activeHandle) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const coords = getCanvasCoords(e);
-    if (!coords) return;
-    const [nx, ny] = coords;
-    const w = canvas.width || 1280;
-    const h = canvas.height || 720;
-    const px = nx * w;
-    const py = ny * h;
-
-    const line = localLine || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
-    const p1x = line.start[0] * w, p1y = line.start[1] * h;
-    const p2x = line.end[0] * w, p2y = line.end[1] * h;
-
-    const distA = Math.hypot(px - p1x, py - p1y);
-    const distB = Math.hypot(px - p2x, py - p2y);
-
-    const dx = p2x - p1x, dy = p2y - p1y;
-    const segLenSq = dx * dx + dy * dy;
-    let distSeg = 9999;
-    if (segLenSq > 0) {
-      const t = Math.max(0, Math.min(1, ((px - p1x) * dx + (py - p1y) * dy) / segLenSq));
-      distSeg = Math.hypot(px - (p1x + t * dx), py - (p1y + t * dy));
-    }
-
-    if (distA < 32 || distB < 32) {
-      canvas.style.cursor = 'grab';
-    } else if (distSeg < 22) {
-      canvas.style.cursor = 'move';
-    } else {
-      canvas.style.cursor = calibrationMode ? 'crosshair' : 'default';
-    }
-  };
-
-  const handleMouseDown = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const coords = getCanvasCoords(e);
-    if (!coords) return;
-    const [nx, ny] = coords;
-    const w = canvas.width || 1280;
-    const h = canvas.height || 720;
-    const px = nx * w;
-    const py = ny * h;
-
-    // Check line handles & segment
-    const line = localLine || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
-    const p1x = line.start[0] * w, p1y = line.start[1] * h;
-    const p2x = line.end[0] * w, p2y = line.end[1] * h;
-
-    const distA = Math.hypot(px - p1x, py - p1y);
-    const distB = Math.hypot(px - p2x, py - p2y);
-
-    const dx = p2x - p1x, dy = p2y - p1y;
-    const segLenSq = dx * dx + dy * dy;
-    let distSeg = 9999;
-    if (segLenSq > 0) {
-      const t = Math.max(0, Math.min(1, ((px - p1x) * dx + (py - p1y) * dy) / segLenSq));
-      distSeg = Math.hypot(px - (p1x + t * dx), py - (p1y + t * dy));
-    }
-
-    // Check perspective 4 corner points if in perspective mode
-    if (calibrationMode === 'perspective') {
-      const pts = localPoints || telemetry?.perspective_points;
-      if (pts && pts.length === 4) {
-        for (let i = 0; i < 4; i++) {
-          const cornerPx = pts[i][0] * w, cornerPy = pts[i][1] * h;
-          if (Math.hypot(px - cornerPx, py - cornerPy) < 32) {
-            setActiveHandle(`p${i}`);
-            return;
-          }
-        }
-      }
-    }
-
-    if (distA < 36) {
-      if (calibrationMode !== 'line') onSetCalibrationMode('line');
-      setActiveHandle('line_start');
-    } else if (distB < 36) {
-      if (calibrationMode !== 'line') onSetCalibrationMode('line');
-      setActiveHandle('line_end');
-    } else if (distSeg < 26) {
-      if (calibrationMode !== 'line') onSetCalibrationMode('line');
-      dragOffsetRef.current = {
-        startX: nx,
-        startY: ny,
-        origStart: [...line.start],
-        origEnd: [...line.end],
-      };
-      setActiveHandle('line_body');
-    } else if (calibrationMode === 'line') {
-      // Reposition line center at click position
-      const halfDx = (line.end[0] - line.start[0]) / 2;
-      const halfDy = (line.end[1] - line.start[1]) / 2;
-      const clamp = (v) => Math.max(0.02, Math.min(0.98, parseFloat(v.toFixed(3))));
-      const updated = {
-        start: [clamp(nx - halfDx), clamp(ny - halfDy)],
-        end: [clamp(nx + halfDx), clamp(ny + halfDy)],
-      };
-      setLocalLine(updated);
-      updateCountingLine(updated.start, updated.end).catch(console.error);
-      wsService.send('set_counting_line', updated);
-    }
-  };
-
-  // ── Global window mousemove & mouseup during drag (never drops or freezes) ──
-  useEffect(() => {
-    if (!activeHandle) return;
-
-    const onWindowMove = (e) => {
-      const coords = getCanvasCoords(e);
-      if (!coords) return;
-      const [nx, ny] = coords;
-      const clamp = (v) => Math.max(0.02, Math.min(0.98, parseFloat(v.toFixed(3))));
-
-      if (activeHandle === 'line_start') {
-        setLocalLine((prev) => {
-          const base = prev || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
-          const updated = { ...base, start: [clamp(nx), clamp(ny)] };
-          wsService.send('set_counting_line', updated);
-          return updated;
-        });
-      } else if (activeHandle === 'line_end') {
-        setLocalLine((prev) => {
-          const base = prev || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
-          const updated = { ...base, end: [clamp(nx), clamp(ny)] };
-          wsService.send('set_counting_line', updated);
-          return updated;
-        });
-      } else if (activeHandle === 'line_body') {
-        const offset = dragOffsetRef.current;
-        if (offset) {
-          const deltaX = nx - offset.startX;
-          const deltaY = ny - offset.startY;
-          setLocalLine(() => {
-            const updated = {
-              start: [clamp(offset.origStart[0] + deltaX), clamp(offset.origStart[1] + deltaY)],
-              end: [clamp(offset.origEnd[0] + deltaX), clamp(offset.origEnd[1] + deltaY)],
-            };
-            wsService.send('set_counting_line', updated);
-            return updated;
-          });
-        }
-      } else if (activeHandle.startsWith('p')) {
-        const idx = parseInt(activeHandle.replace('p', ''));
-        if (!isNaN(idx) && idx >= 0 && idx < 4) {
-          setLocalPoints((prev) => {
-            const pts = [...(prev || telemetry?.perspective_points || [[0.2, 0.45], [0.8, 0.45], [0.95, 0.95], [0.05, 0.95]])];
-            pts[idx] = [clamp(nx), clamp(ny)];
-            wsService.send('set_perspective', { points: pts });
-            return pts;
-          });
-        }
-      }
-    };
-
-    const onWindowUp = () => {
-      setActiveHandle(null);
-      dragOffsetRef.current = null;
-      if (localLineRef.current) {
-        updateCountingLine(localLineRef.current.start, localLineRef.current.end).catch(console.error);
-        wsService.send('set_counting_line', localLineRef.current);
-      }
-      if (localPointsRef.current) {
-        updatePerspective(localPointsRef.current).catch(console.error);
-        wsService.send('set_perspective', { points: localPointsRef.current });
-      }
-    };
-
-    window.addEventListener('mousemove', onWindowMove);
-    window.addEventListener('mouseup', onWindowUp);
-    window.addEventListener('touchmove', onWindowMove, { passive: false });
-    window.addEventListener('touchend', onWindowUp);
-
-    return () => {
-      window.removeEventListener('mousemove', onWindowMove);
-      window.removeEventListener('mouseup', onWindowUp);
-      window.removeEventListener('touchmove', onWindowMove);
-      window.removeEventListener('touchend', onWindowUp);
-    };
-  }, [activeHandle, telemetry?.counting_line, telemetry?.perspective_points]);
-
-  // ── Canvas overlay drawing ────────────────────────────────────────────────
+  // Draw crisp single counting line on canvas overlay
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
+
     ctx.clearRect(0, 0, w, h);
 
-    // Draw Counting Line whenever available
-    const line = localLine || telemetry?.counting_line || { start: [0.1, 0.5], end: [0.9, 0.5] };
-    if (line && line.start && line.end) {
-      const sx = line.start[0] * w,
-        sy = line.start[1] * h,
-        ex = line.end[0] * w,
-        ey = line.end[1] * h;
-      const mx = (sx + ex) / 2,
-        my = (sy + ey) / 2;
-      const dx = ex - sx,
-        dy = ey - sy,
-        len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len,
-        ny = dx / len,
-        arrowDist = 45;
-      const inX = mx + nx * arrowDist,
-        inY = my + ny * arrowDist;
-      const outX = mx - nx * arrowDist,
-        outY = my - ny * arrowDist;
+    if (!lineStart || !lineEnd) return;
 
-      // Draw directional banners only in editing or local mode to avoid duplication with backend
-      if (calibrationMode === 'line' || displayMode === 'local' || activeHandle) {
-        // IN direction arrow & badge
-        ctx.strokeStyle = '#10B981';
-        ctx.fillStyle = '#10B981';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(mx, my);
-        ctx.lineTo(inX, inY);
-        ctx.stroke();
-        ctx.font = 'bold 11px Inter,sans-serif';
-        ctx.fillStyle = '#06281E';
-        ctx.fillRect(inX - 70, inY - 11, 140, 22);
-        ctx.strokeStyle = '#10B981';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(inX - 70, inY - 11, 140, 22);
-        ctx.fillStyle = '#10B981';
-        ctx.textAlign = 'center';
-        ctx.fillText('▲ IN (ENTERING)', inX, inY + 4);
+    const ax = lineStart[0] * w;
+    const ay = lineStart[1] * h;
+    const bx = lineEnd[0] * w;
+    const by = lineEnd[1] * h;
 
-        // OUT direction arrow & badge
-        ctx.strokeStyle = '#F43F5E';
-        ctx.fillStyle = '#F43F5E';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(mx, my);
-        ctx.lineTo(outX, outY);
-        ctx.stroke();
-        ctx.fillStyle = '#2D0A14';
-        ctx.fillRect(outX - 70, outY - 11, 140, 22);
-        ctx.strokeStyle = '#F43F5E';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(outX - 70, outY - 11, 140, 22);
-        ctx.fillStyle = '#F43F5E';
-        ctx.fillText('▼ OUT (EXITING)', outX, outY + 4);
-        ctx.textAlign = 'left';
+    ctx.save();
 
-        // Main Virtual Counting Line
-        ctx.strokeStyle = 'rgba(0,240,255,0.4)';
-        ctx.lineWidth = 7;
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(ex, ey);
-        ctx.stroke();
-        ctx.strokeStyle = '#00F0FF';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(ex, ey);
-        ctx.stroke();
-      }
+    // 1. Subtle outline glow for maximum visibility on all backgrounds
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
 
-      // End Handle Markers (A and B) - Always interactive
-      const isEditing = calibrationMode === 'line' || activeHandle;
-      [
-        [sx, sy, 'A', line.start],
-        [ex, ey, 'B', line.end],
-      ].forEach(([px, py, lbl, normPt]) => {
-        // Outer glow
-        ctx.beginPath();
-        ctx.arc(px, py, isEditing ? 22 : 16, 0, Math.PI * 2);
-        ctx.fillStyle = isEditing ? 'rgba(0,240,255,0.3)' : 'rgba(0,240,255,0.18)';
-        ctx.fill();
+    // 2. Primary Vibrant Blue Counting Line
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
 
-        // Main circular handle
-        ctx.fillStyle = isEditing ? '#00F0FF' : 'rgba(0,240,255,0.9)';
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = isEditing ? 3 : 2.5;
-        ctx.beginPath();
-        ctx.arc(px, py, isEditing ? 15 : 12, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Handle letter
-        ctx.fillStyle = '#070B13';
-        ctx.font = `bold ${isEditing ? '12px' : '10px'} JetBrains Mono,monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText(lbl, px, py + 4);
-
-        // Coordinate tooltip when editing
-        if (isEditing) {
-          const coordText = `${lbl} (${(normPt[0] * 100).toFixed(0)}%, ${(normPt[1] * 100).toFixed(0)}%)`;
-          ctx.font = 'bold 10px JetBrains Mono,monospace';
-          const badgeW = ctx.measureText(coordText).width + 12;
-          const badgeY = py > 40 ? py - 24 : py + 28;
-          ctx.fillStyle = 'rgba(7,10,19,0.92)';
-          ctx.fillRect(px - badgeW / 2, badgeY - 11, badgeW, 18);
-          ctx.strokeStyle = '#00F0FF';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(px - badgeW / 2, badgeY - 11, badgeW, 18);
-          ctx.fillStyle = '#00F0FF';
-          ctx.fillText(coordText, px, badgeY + 2);
-        }
-      });
-      ctx.textAlign = 'left';
-    }
-
-    if (calibrationMode === 'perspective') {
-      const pts = localPoints || telemetry?.perspective_points;
-      if (!pts || pts.length !== 4) return;
-      const pxPts = pts.map((p) => [p[0] * w, p[1] * h]);
-      ctx.fillStyle = 'rgba(0,240,255,0.15)';
+    // 3. Corner Endpoints (Visual reference when handles not hovered)
+    const drawPoint = (x, y, label) => {
       ctx.beginPath();
-      ctx.moveTo(pxPts[0][0], pxPts[0][1]);
-      pxPts.slice(1).forEach((p) => ctx.lineTo(p[0], p[1]));
-      ctx.closePath();
+      ctx.arc(x, y, 9, 0, Math.PI * 2);
+      ctx.fillStyle = '#2563eb';
       ctx.fill();
-      ctx.strokeStyle = '#00F0FF';
+      ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      pxPts.forEach((p, i) =>
-        i === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1])
-      );
-      ctx.closePath();
       ctx.stroke();
-      ['① TL', '② TR', '③ BR', '④ BL'].forEach((lbl, i) => {
-        const [px, py] = pxPts[i];
-        ctx.strokeStyle = '#10B981';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(px, py, 14, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = '#10B981';
-        ctx.beginPath();
-        ctx.arc(px, py, 8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.font = 'bold 11px JetBrains Mono,monospace';
-        ctx.fillStyle = 'rgba(7,10,17,0.9)';
-        ctx.fillRect(px + 14, py - 10, 80, 20);
-        ctx.strokeStyle = '#10B981';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(px + 14, py - 10, 80, 20);
-        ctx.fillStyle = '#10B981';
-        ctx.fillText(lbl, px + 18, py + 4);
-      });
+      
+      // Label text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x, y);
+    };
+
+    drawPoint(ax, ay, 'A');
+    drawPoint(bx, by, 'B');
+
+    // 4. Direction indicators in middle of line
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+
+    // Small normal arrow vector pointing towards IN
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.lineTo(mx + nx * 26, my + ny * 26);
+    ctx.stroke();
+
+    // Small IN label
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.roundRect(mx + nx * 34 - 16, my + ny * 34 - 10, 32, 20, 4);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('IN', mx + nx * 34, my + ny * 34);
+
+    // Small OUT label
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.roundRect(mx - nx * 34 - 20, my - ny * 34 - 10, 40, 20, 4);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('OUT', mx - nx * 34, my - ny * 34);
+
+    ctx.restore();
+  }, [lineStart, lineEnd]);
+
+  // Convert screen pointer coordinates to normalized [0..1, 0..1]
+  const getNormalizedPoint = useCallback((clientX, clientY) => {
+    const container = containerRef.current;
+    if (!container) return { x: 0.5, y: 0.5 };
+    const rect = container.getBoundingClientRect();
+    const nx = Math.max(0.01, Math.min(0.99, (clientX - rect.left) / rect.width));
+    const ny = Math.max(0.01, Math.min(0.99, (clientY - rect.top) / rect.height));
+    return {
+      x: parseFloat(nx.toFixed(3)),
+      y: parseFloat(ny.toFixed(3)),
+    };
+  }, []);
+
+  // Save changes to backend
+  const commitLineUpdate = useCallback(async (start, end) => {
+    try {
+      await updateCountingLine(start, end);
+      onLineUpdated?.(start, end);
+      setSaveSuccessNotice(true);
+      setTimeout(() => setSaveSuccessNotice(false), 2000);
+    } catch (err) {
+      console.error('Failed to commit counting line:', err);
     }
-  }, [calibrationMode, displayMode, localLine, localPoints, telemetry]);
+  }, [onLineUpdated]);
 
-  // ── Canvas size from telemetry resolution ─────────────────────────────────
-  const resParts = (telemetry?.resolution || '1280x720').split('x');
-  const canvasWidth = parseInt(resParts[0]) || 1280;
-  const canvasHeight = parseInt(resParts[1]) || 720;
+  // Pointer Down on Handle Pin A or B
+  const handlePinPointerDown = (pin, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingRef.current = true;
+    setActivePin(pin);
+    try {
+      e.target.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // Pointer Move during dragging
+  const handlePinPointerMove = (pin, e) => {
+    if (activePin !== pin) return;
+    const { x, y } = getNormalizedPoint(e.clientX, e.clientY);
+    if (pin === 'A') {
+      setLineStart([x, y]);
+    } else if (pin === 'B') {
+      setLineEnd([x, y]);
+    }
+  };
+
+  // Pointer Up (Drop handle)
+  const handlePinPointerUp = (pin, e) => {
+    try {
+      if (e.target.hasPointerCapture(e.pointerId)) {
+        e.target.releasePointerCapture(e.pointerId);
+      }
+    } catch (_) {}
+    isDraggingRef.current = false;
+    setActivePin(null);
+    commitLineUpdate(lineStart, lineEnd);
+  };
+
+  // Direct Click/Tap on the video to snap nearest corner
+  const handleVideoPointerDown = (e) => {
+    // Only snap if edit mode is toggled or user clicked near an endpoint
+    if (!isEditMode) return;
+    const { x, y } = getNormalizedPoint(e.clientX, e.clientY);
+    const distA = Math.hypot(x - lineStart[0], y - lineStart[1]);
+    const distB = Math.hypot(x - lineEnd[0], y - lineEnd[1]);
+
+    if (distA < distB) {
+      setLineStart([x, y]);
+      commitLineUpdate([x, y], lineEnd);
+    } else {
+      setLineEnd([x, y]);
+      commitLineUpdate(lineStart, [x, y]);
+    }
+  };
+
+  // 1-Click Corner Presets
+  const applyPreset = (preset) => {
+    let newStart = lineStart;
+    let newEnd = lineEnd;
+    if (preset === 'corner') {
+      // From bottom-left corner to top-right
+      newStart = [0.06, 0.88];
+      newEnd = [0.94, 0.44];
+    } else if (preset === 'gate') {
+      // Horizontal gate across doorway
+      newStart = [0.05, 0.52];
+      newEnd = [0.95, 0.52];
+    } else if (preset === 'diagonal') {
+      // High diagonal cut
+      newStart = [0.08, 0.86];
+      newEnd = [0.92, 0.18];
+    }
+    setLineStart(newStart);
+    setLineEnd(newEnd);
+    commitLineUpdate(newStart, newEnd);
+  };
+
+  // Flip IN / OUT Direction
+  const handleFlipDirection = () => {
+    const newStart = lineEnd;
+    const newEnd = lineStart;
+    setLineStart(newStart);
+    setLineEnd(newEnd);
+    commitLineUpdate(newStart, newEnd);
+  };
+
+  // Handle Play/Pause
+  const handleTogglePlay = async () => {
+    const action = isPaused ? 'resume' : 'pause';
+    try {
+      await controlVideo(action);
+      setIsPaused(!isPaused);
+    } catch (e) {
+      console.error('Play/pause error:', e);
+    }
+  };
+
+  const handleReload = () => {
+    setStreamError(false);
+    setStreamLoading(true);
+    setStreamKey(Date.now());
+  };
+
   return (
-    <div
-      className="glass-panel video-panel"
-      ref={containerRef}
-      style={{ position: 'relative', overflow: 'hidden' }}
-    >
+    <div className="video-card">
+      {/* ── Video Viewport (Contain Mode, Direct Corner Drag & Drop) ── */}
       <div
-        className="video-container"
+        className="video-wrapper"
+        ref={containerRef}
+        onPointerDown={handleVideoPointerDown}
         style={{
           position: 'relative',
-          background: '#030712',
-          borderRadius: '12px',
-          minHeight: '380px',
-          // GPU compositing layer — prevents CPU-bound render freeze on macOS/iOS
-          transform: 'translateZ(0)',
-          WebkitTransform: 'translateZ(0)',
-          willChange: 'transform',
+          cursor: isEditMode ? 'crosshair' : 'default',
+          touchAction: 'none',
         }}
       >
-        {/* ── Hidden device camera video element ── */}
-        <video
-          ref={deviceVideoRef}
-          autoPlay
-          playsInline
-          muted
-          style={{
-            display: displayMode === 'device' ? 'block' : 'none',
-            width: '100%',
-            height: 'auto',
-            borderRadius: '12px',
-          }}
-        />
-
-        {/* ── Local file preview <video> — stable, never recreated ── */}
-        <video
-          ref={localVideoRef}
-          playsInline
-          muted
-          loop
-          style={{
-            display: displayMode === 'local' ? 'block' : 'none',
-            width: '100%',
-            height: 'auto',
-            borderRadius: '12px',
-            // Force hardware decoding on all platforms
-            transform: 'translateZ(0)',
-            WebkitTransform: 'translateZ(0)',
-          }}
-          // These must be attributes (not just props) for Safari/iOS
-          webkit-playsinline="true"
-          x5-playsinline="true"
-        />
-
-        {/* ── MJPEG backend stream <img> — stable, only src changes ── */}
+        {/* Main AI Stream Image */}
         <img
-          ref={mjpegImgRef}
-          alt="VisionEye AI Stream"
+          ref={imgRef}
+          src={`/api/video/feed?t=${streamKey}`}
+          alt="VisionEye Live Video Analytics"
           className="video-element"
-          style={{
-            display: displayMode === 'stream' ? 'block' : 'none',
-            width: '100%',
-            height: 'auto',
-            borderRadius: '12px',
+          onLoad={() => {
+            setStreamLoading(false);
+            setStreamError(false);
           }}
-          onLoad={handleStreamLoad}
-          onError={handleStreamError}
+          onError={() => {
+            setStreamLoading(false);
+            setStreamError(true);
+          }}
         />
 
-        {/* Hidden offscreen canvas for device camera frame extraction */}
-        <canvas ref={offscreenCanvasRef} style={{ display: 'none' }} />
+        {/* Video Canvas Overlay for Counting Line & Vectors */}
+        <canvas
+          ref={canvasRef}
+          width={640}
+          height={360}
+          className="canvas-overlay"
+          style={{ pointerEvents: 'none' }}
+        />
 
-        {/* ── Autoplay blocked: show simple ▶ Play button ── */}
-        {playBlocked && displayMode === 'local' && (
+        {/* ── DRAGGABLE CORNER PIN A (Direct Drag & Drop) ── */}
+        <div
+          onPointerDown={(e) => handlePinPointerDown('A', e)}
+          onPointerMove={(e) => handlePinPointerMove('A', e)}
+          onPointerUp={(e) => handlePinPointerUp('A', e)}
+          onPointerCancel={(e) => handlePinPointerUp('A', e)}
+          title="Drag and Drop Point A to position the counting line"
+          style={{
+            position: 'absolute',
+            left: `${lineStart[0] * 100}%`,
+            top: `${lineStart[1] * 100}%`,
+            transform: 'translate(-50%, -50%)',
+            width: '52px',
+            height: '52px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: activePin === 'A' ? 'grabbing' : 'grab',
+            touchAction: 'none',
+            userSelect: 'none',
+            zIndex: 35,
+          }}
+        >
+          {/* Outer Pulsing Touch Area */}
           <div
             style={{
-              position: 'absolute',
-              inset: 0,
+              width: isEditMode || activePin === 'A' ? '38px' : '30px',
+              height: isEditMode || activePin === 'A' ? '38px' : '30px',
+              borderRadius: '50%',
+              backgroundColor: activePin === 'A' ? 'rgba(37, 99, 235, 0.45)' : 'rgba(37, 99, 235, 0.25)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(3,7,18,0.55)',
-              zIndex: 15,
-              borderRadius: '12px',
+              boxShadow: activePin === 'A' ? '0 0 0 8px rgba(37, 99, 235, 0.3)' : '0 0 0 4px rgba(37, 99, 235, 0.18)',
+              transition: 'all 0.15s ease',
+              transform: activePin === 'A' ? 'scale(1.15)' : 'scale(1)',
             }}
           >
-            <button
-              onClick={handleManualPlay}
+            {/* Inner Handle Disc */}
+            <div
               style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                backgroundColor: '#2563eb',
+                border: '2.5px solid #ffffff',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.6rem',
-                background: 'rgba(0,240,255,0.15)',
-                border: '2px solid #00F0FF',
-                color: '#00F0FF',
-                borderRadius: '50px',
-                padding: '0.85rem 2rem',
-                fontSize: '1.1rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                backdropFilter: 'blur(12px)',
-                boxShadow: '0 0 30px rgba(0,240,255,0.3)',
+                justifyContent: 'center',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '11px',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
               }}
             >
-              <Play size={22} />
-              Play
+              A
+            </div>
+          </div>
+
+          {/* Coordinate Tooltip during drag or edit mode */}
+          {(isEditMode || activePin === 'A') && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '-20px',
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                color: '#ffffff',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                fontSize: '9px',
+                fontFamily: 'monospace',
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              A: {Math.round(lineStart[0] * 100)}%, {Math.round(lineStart[1] * 100)}%
+            </div>
+          )}
+        </div>
+
+        {/* ── DRAGGABLE CORNER PIN B (Direct Drag & Drop) ── */}
+        <div
+          onPointerDown={(e) => handlePinPointerDown('B', e)}
+          onPointerMove={(e) => handlePinPointerMove('B', e)}
+          onPointerUp={(e) => handlePinPointerUp('B', e)}
+          onPointerCancel={(e) => handlePinPointerUp('B', e)}
+          title="Drag and Drop Point B to position the counting line"
+          style={{
+            position: 'absolute',
+            left: `${lineEnd[0] * 100}%`,
+            top: `${lineEnd[1] * 100}%`,
+            transform: 'translate(-50%, -50%)',
+            width: '52px',
+            height: '52px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: activePin === 'B' ? 'grabbing' : 'grab',
+            touchAction: 'none',
+            userSelect: 'none',
+            zIndex: 35,
+          }}
+        >
+          {/* Outer Pulsing Touch Area */}
+          <div
+            style={{
+              width: isEditMode || activePin === 'B' ? '38px' : '30px',
+              height: isEditMode || activePin === 'B' ? '38px' : '30px',
+              borderRadius: '50%',
+              backgroundColor: activePin === 'B' ? 'rgba(37, 99, 235, 0.45)' : 'rgba(37, 99, 235, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: activePin === 'B' ? '0 0 0 8px rgba(37, 99, 235, 0.3)' : '0 0 0 4px rgba(37, 99, 235, 0.18)',
+              transition: 'all 0.15s ease',
+              transform: activePin === 'B' ? 'scale(1.15)' : 'scale(1)',
+            }}
+          >
+            {/* Inner Handle Disc */}
+            <div
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                backgroundColor: '#2563eb',
+                border: '2.5px solid #ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '11px',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+              }}
+            >
+              B
+            </div>
+          </div>
+
+          {/* Coordinate Tooltip during drag or edit mode */}
+          {(isEditMode || activePin === 'B') && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '-20px',
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                color: '#ffffff',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                fontSize: '9px',
+                fontFamily: 'monospace',
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              B: {Math.round(lineEnd[0] * 100)}%, {Math.round(lineEnd[1] * 100)}%
+            </div>
+          )}
+        </div>
+
+        {/* Live "✓ Saved" Floating Toast */}
+        {saveSuccessNotice && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              backgroundColor: 'rgba(22, 163, 74, 0.92)',
+              color: '#ffffff',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              zIndex: 40,
+              animation: 'fadeIn 0.2s ease',
+            }}
+          >
+            <Check size={13} />
+            <span>Counting Line Saved</span>
+          </div>
+        )}
+
+        {/* Quick Drag & Drop Helper Bar (When Edit Mode is active) */}
+        {isEditMode && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '10px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid #bfdbfe',
+              borderRadius: '30px',
+              padding: '5px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 8px 24px rgba(15, 23, 42, 0.2)',
+              zIndex: 40,
+            }}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', marginRight: '4px' }}>
+              Drag Corners A/B:
+            </span>
+            <button
+              type="button"
+              onClick={() => applyPreset('corner')}
+              className="btn btn-secondary"
+              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px' }}
+            >
+              🌟 Corner
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset('gate')}
+              className="btn btn-secondary"
+              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px' }}
+            >
+              🚪 Gate
+            </button>
+            <button
+              type="button"
+              onClick={handleFlipDirection}
+              className="btn btn-secondary"
+              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px' }}
+              title="Flip Direction"
+            >
+              <ArrowUpDown size={11} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditMode(false)}
+              className="btn btn-primary"
+              style={{ padding: '2px 10px', fontSize: '11px', minHeight: '26px', borderRadius: '14px' }}
+            >
+              <Check size={12} />
+              <span>Done</span>
             </button>
           </div>
         )}
 
-        {/* ── Stream disconnected banner ── */}
-        {streamError && displayMode === 'stream' && (
+        {/* Loading Spinner */}
+        {streamLoading && (
           <div
             style={{
               position: 'absolute',
               inset: 0,
-              background: 'rgba(6,9,19,0.88)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              color: '#ffffff',
+              gap: '0.6rem',
+              zIndex: 10,
+            }}
+          >
+            <Loader2 size={32} className="animate-spin" style={{ color: '#3b82f6' }} />
+            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Loading AI Stream...</span>
+          </div>
+        )}
+
+        {/* Disconnection / Error Overlay */}
+        {streamError && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              color: '#ffffff',
               gap: '0.75rem',
+              padding: '1rem',
+              textAlign: 'center',
               zIndex: 20,
-              borderRadius: '12px',
             }}
           >
-            <AlertCircle size={32} style={{ color: 'var(--accent-rose)' }} />
-            <span style={{ color: '#FFF', fontWeight: 600, fontSize: '0.9rem' }}>
-              Reconnecting to stream…
-            </span>
-            <button
-              onClick={reloadStream}
-              className="btn btn-primary"
-              style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}
-            >
-              <RefreshCw size={12} style={{ marginRight: '0.3rem' }} />
-              Retry Now
-            </button>
-          </div>
-        )}
-
-        {/* ── Camera permission error ── */}
-        {cameraError && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50px',
-              left: '10px',
-              right: '10px',
-              background: 'rgba(244,63,94,0.95)',
-              color: '#FFF',
-              padding: '0.6rem 0.85rem',
-              borderRadius: '8px',
-              fontSize: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              zIndex: 25,
-            }}
-          >
-            <span>⚠️ {cameraError}</span>
-            <button
-              onClick={() => setCameraError('')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#FFF',
-                cursor: 'pointer',
-                fontWeight: 700,
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* ── Calibration canvas overlay ── */}
-        <canvas
-          ref={canvasRef}
-          width={canvasWidth}
-          height={canvasHeight}
-          className="canvas-overlay"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            pointerEvents: 'auto',
-            touchAction: 'none',
-          }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleCanvasMouseMove}
-          onTouchStart={handleMouseDown}
-        />
-
-        {/* ── Active Line Calibration Banner across bottom of video ── */}
-        {calibrationMode === 'line' && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '12px',
-              left: '12px',
-              right: '12px',
-              background: 'rgba(7, 10, 19, 0.92)',
-              border: '1px solid var(--accent-cyan)',
-              borderRadius: '8px',
-              padding: '0.5rem 0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              zIndex: 12,
-              backdropFilter: 'blur(8px)',
-              pointerEvents: 'auto',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: '#00F0FF' }}>
-              <span style={{ fontSize: '1.1rem' }}>📏</span>
-              <span><strong>Line Editing Active:</strong> Drag Handle <strong>A</strong>, Handle <strong>B</strong>, or the line body across the doorway.</span>
+            <AlertCircle size={36} style={{ color: '#ef4444' }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Stream Reconnecting</div>
+              <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '0.2rem 0 0' }}>
+                Waiting for the next frame from the camera gateway...
+              </p>
             </div>
             <button
-              onClick={() => onSetCalibrationMode(null)}
-              className="btn btn-primary"
-              style={{ padding: '0.25rem 0.85rem', fontSize: '0.75rem', fontWeight: 700 }}
-            >
-              ✓ Save Line
-            </button>
-          </div>
-        )}
-
-        {/* ── HUD Top Bar ── */}
-        <div
-          className="video-hud-top"
-          style={{
-            position: 'absolute',
-            top: '10px',
-            left: '10px',
-            right: '10px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            pointerEvents: 'none',
-            zIndex: 10,
-          }}
-        >
-          {/* Left: source name + camera flip */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.4rem',
-              pointerEvents: 'auto',
-              alignItems: 'center',
-            }}
-          >
-            <div
-              className="hud-tag"
-              style={{
-                background: 'rgba(7,10,19,0.8)',
-                border: '1px solid rgba(0,240,255,0.3)',
-                color: '#00F0FF',
-              }}
-            >
-              <Camera size={12} />
-              <span style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {sourceName}
-              </span>
-            </div>
-
-            {isDeviceCameraActive && (
-              <button
-                onClick={handleToggleFacingMode}
-                className="btn btn-secondary"
-                style={{
-                  padding: '0.22rem 0.5rem',
-                  fontSize: '0.7rem',
-                  background: 'rgba(0,240,255,0.15)',
-                  borderColor: '#00F0FF',
-                  pointerEvents: 'auto',
-                }}
-                title="Switch Front/Rear Camera"
-              >
-                <SwitchCamera size={11} /> Flip
-              </button>
-            )}
-          </div>
-
-          {/* Right: view mode, line adjust, and metrics */}
-          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', pointerEvents: 'auto' }}>
-            {/* View Mode Switcher */}
-            <button
-              onClick={() => {
-                if (displayMode === 'stream') {
-                  setDisplayMode('local');
-                } else {
-                  switchToStream();
-                }
-              }}
+              onClick={handleReload}
               className="btn btn-secondary"
-              style={{
-                padding: '0.22rem 0.65rem',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                background: displayMode === 'stream' ? 'rgba(0,240,255,0.18)' : 'rgba(245,158,11,0.18)',
-                borderColor: displayMode === 'stream' ? '#00F0FF' : '#F59E0B',
-                color: displayMode === 'stream' ? '#00F0FF' : '#F59E0B',
-                pointerEvents: 'auto',
-              }}
-              title="Switch between live YOLO26n AI Detection and Raw Local Video"
+              style={{ fontSize: '0.8rem', padding: '0.4rem 1rem' }}
             >
-              {displayMode === 'stream' ? '🧠 AI Stream' : '⚡ Local Preview'}
+              <RefreshCw size={14} />
+              <span>Retry Stream</span>
             </button>
-
-            {/* Quick Line Adjust Button */}
-            <button
-              onClick={() => onSetCalibrationMode(calibrationMode === 'line' ? null : 'line')}
-              className={`btn ${calibrationMode === 'line' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{
-                padding: '0.22rem 0.65rem',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                pointerEvents: 'auto',
-                borderColor: 'var(--accent-cyan)',
-                color: calibrationMode === 'line' ? '#000' : 'var(--accent-cyan)',
-              }}
-              title="Adjust counting line position on screen"
-            >
-              {calibrationMode === 'line' ? '✓ Save Line' : '📏 Adjust Line'}
-            </button>
-
-            {/* Metrics rendered as memo component — won't cause video re-renders */}
-            <MetricsHUD
-              telemetry={telemetry}
-              isLocalMode={displayMode === 'local'}
-            />
           </div>
+        )}
+      </div>
+
+      {/* ── Control Bar Placed Cleanly OUTSIDE Video ── */}
+      <div
+        style={{
+          padding: '0.85rem 1.25rem',
+          backgroundColor: '#ffffff',
+          borderTop: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          boxSizing: 'border-box',
+        }}
+      >
+        {/* Left: Source Info & Camera Flip */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="badge badge-blue" style={{ fontSize: '0.76rem', padding: '0.3rem 0.65rem' }}>
+            <Camera size={13} />
+            <span style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {sourceName}
+            </span>
+          </div>
+
+          {isDeviceCameraActive && (
+            <button
+              type="button"
+              onClick={onToggleFacingMode}
+              className="btn btn-secondary"
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', minHeight: '34px' }}
+              title="Flip Front / Rear Camera"
+            >
+              <SwitchCamera size={14} />
+              <span>Flip</span>
+            </button>
+          )}
+        </div>
+
+        {/* Right: Direct Drag-and-Drop Toggle & Video Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {/* Direct Drag & Drop Corner Line Editing Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsEditMode((prev) => !prev)}
+            className={`btn ${isEditMode ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              fontSize: '0.82rem',
+              padding: '0.45rem 0.85rem',
+              minHeight: '36px',
+              backgroundColor: isEditMode ? '#2563eb' : '#eff6ff',
+              color: isEditMode ? '#ffffff' : '#2563eb',
+              borderColor: isEditMode ? '#2563eb' : '#bfdbfe',
+              fontWeight: 600,
+            }}
+            title="Toggle direct drag and drop line editing on the video"
+          >
+            <Sliders size={14} />
+            <span>{isEditMode ? 'Done Editing' : 'Drag Line on Video'}</span>
+          </button>
+
+          {/* Full Line Editor Modal Trigger */}
+          <button
+            type="button"
+            onClick={onOpenLineEdit}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.82rem', padding: '0.45rem 0.85rem', minHeight: '36px' }}
+            title="Open advanced line editor modal"
+          >
+            <span>Full Editor</span>
+          </button>
+
+          {/* Play / Pause Toggle */}
+          <button
+            type="button"
+            onClick={handleTogglePlay}
+            className={`btn ${isPaused ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              fontSize: '0.82rem',
+              padding: '0.45rem 1rem',
+              minHeight: '36px',
+              fontWeight: 700,
+              backgroundColor: isPaused ? '#2563eb' : '#eff6ff',
+              color: isPaused ? '#ffffff' : '#2563eb',
+              borderColor: isPaused ? '#2563eb' : '#bfdbfe',
+            }}
+          >
+            {isPaused ? <Play size={14} /> : <Pause size={14} />}
+            <span>{isPaused ? 'Start Analytics' : 'Pause'}</span>
+          </button>
         </div>
       </div>
     </div>
