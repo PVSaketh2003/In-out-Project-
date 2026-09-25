@@ -214,22 +214,39 @@ export default function App() {
         onStatusChange: (st) => {
           if (st === 'initializing') setUploadStatusText('Initializing session...');
           else if (st === 'resuming') setUploadStatusText('Resuming upload...');
-          else if (st === 'uploading') setUploadStatusText(`Uploading ${uploadProgress}%...`);
+          else if (st === 'uploading') setUploadStatusText(`Uploading...`);
           else if (st === 'finalizing') setUploadStatusText('Finalizing video...');
-          else if (st === 'completed') setUploadStatusText('Upload completed!');
+          else if (st === 'completed') setUploadStatusText('Playing Video...');
         },
       });
       uploaderRef.current = uploader;
 
       const result = await uploader.start();
+      setUploadProgress(100);
+      setUploadStatusText('Playing Video...');
       setSourceName(result.file_name || file.name);
+      setSelectedSource('file');
       setActiveStep(3);
+
+      // Instantly ensure pipeline is playing the newly uploaded video file
+      if (result.file_path) {
+        try {
+          await startVideoSource('file', result.file_path);
+        } catch (_) {}
+      }
+      window.dispatchEvent(new CustomEvent('visioneye:stream_reload', { detail: { path: result.file_path } }));
+
+      setTimeout(() => {
+        setUploading(false);
+        setUploadProgress(0);
+        setUploadStatusText('');
+      }, 700);
     } catch (err) {
       console.error('File upload error:', err);
-    } finally {
       setUploading(false);
       setUploadProgress(0);
       setUploadStatusText('');
+    } finally {
       e.target.value = '';
     }
   };

@@ -64,6 +64,20 @@ export default function VideoPlayer({
     };
   }, []);
 
+  // Listen for stream reload events for instant playback on upload completion
+  useEffect(() => {
+    const onStreamReload = () => {
+      setStreamError(false);
+      setStreamLoading(true);
+      setIsPaused(false);
+      setStreamKey(Date.now());
+    };
+    window.addEventListener('visioneye:stream_reload', onStreamReload);
+    return () => {
+      window.removeEventListener('visioneye:stream_reload', onStreamReload);
+    };
+  }, []);
+
   // Update renderer with telemetry and counting line
   useEffect(() => {
     if (rendererRef.current) {
