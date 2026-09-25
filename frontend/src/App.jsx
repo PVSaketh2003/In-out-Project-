@@ -19,6 +19,8 @@ import TopViewPanel from './components/TopViewPanel';
 import { checkSession, logout } from './services/auth';
 import { wsService } from './services/websocket';
 import { fetchConfig, startVideoSource, uploadVideoFile, controlVideo } from './services/api';
+import { CameraManager } from './services/cameraManager';
+import { ResumableUploader } from './services/resumableUploader';
 import { ChevronDown, ChevronUp, BarChart3, Loader2 } from 'lucide-react';
 
 export default function App() {
@@ -35,8 +37,11 @@ export default function App() {
   const [sourceName, setSourceName] = useState('Demo Pedestrian Video');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState('');
   const [isDeviceCameraActive, setIsDeviceCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState('user');
+  const [cameraError, setCameraError] = useState('');
+  const [cameraLoading, setCameraLoading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
   // Modals & Panels
@@ -48,9 +53,38 @@ export default function App() {
   // Telemetry & WebSocket
   const [telemetry, setTelemetry] = useState(null);
   const [wsStatus, setWsStatus] = useState('disconnected');
-  const [activeStep, setActiveStep] = useState(3); // 1: Source, 2: Configure, 3: Analyze, 4: Results
+  const [activeStep, setActiveStep] = useState(3);
 
   const fileInputRef = useRef(null);
+  const cameraManagerRef = useRef(null);
+  const uploaderRef = useRef(null);
+
+  // Initialize CameraManager lifecycle
+  useEffect(() => {
+    cameraManagerRef.current = new CameraManager({
+      targetFps: 15,
+      frameQuality: 0.65,
+      facingMode: facingMode,
+      onStateChange: (st) => {
+        if (st === 'active') {
+          setCameraLoading(false);
+          setCameraError('');
+        } else if (st === 'requesting_permission') {
+          setCameraLoading(true);
+        } else if (st === 'stopped') {
+          setCameraLoading(false);
+        }
+      },
+      onError: (err) => {
+        setCameraError(typeof err === 'string' ? err : err.message || 'Camera access error');
+        setCameraLoading(false);
+      },
+    });
+
+    return () => {
+      cameraManagerRef.current?.stop();
+    };
+  }, []);
 
   // 1. Check Authentication on Mount
   useEffect(() => {
@@ -102,6 +136,7 @@ export default function App() {
   }, [isAuth]);
 
   const handleLogout = async () => {
+    cameraManagerRef.current?.stop();
     await logout();
     setIsAuth(false);
     setUserEmail('');
@@ -116,11 +151,13 @@ export default function App() {
     }
   };
 
-  // Switch Video Source: Demo Video
+  // Switch Video Source: Demo Video, Device Camera, File, RTSP
   const handleSelectSource = async (type) => {
     setSelectedSource(type);
+    setCameraError('');
     try {
       if (type === 'synthetic') {
+        cameraManagerRef.current?.stop();
         setIsDeviceCameraActive(false);
         setSourceName('Demo Pedestrian Video');
         await startVideoSource('synthetic');
@@ -128,8 +165,22 @@ export default function App() {
       } else if (type === 'client') {
         setIsDeviceCameraActive(true);
         setSourceName('Device Camera');
-        await startVideoSource('client');
-        setActiveStep(3);
+        setCameraLoading(true);
+        try {
+          await cameraManagerRef.current?.start(facingMode);
+          await startVideoSource('client');
+          setActiveStep(3);
+        } catch (camErr) {
+          setCameraError(camErr.message || 'Unable to open camera');
+          setIsDeviceCameraActive(false);
+          setSelectedSource('synthetic');
+          await startVideoSource('synthetic');
+        } finally {
+          setCameraLoading(false);
+        }
+      } else if (type === 'file' || type === 'rtsp') {
+        cameraManagerRef.current?.stop();
+        setIsDeviceCameraActive(false);
       }
     } catch (err) {
       console.error('Switch source error:', err);
@@ -141,30 +192,52 @@ export default function App() {
     fileInputRef.current?.click();
   };
 
-  // Video File Upload Handler
+  // Video File Upload Handler (Resumable Chunked Upload)
   const handleFileChosen = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    cameraManagerRef.current?.stop();
+    setIsDeviceCameraActive(false);
 
     setSelectedSource('file');
     setSourceName(file.name);
     setUploading(true);
     setUploadProgress(0);
+    setUploadStatusText('Initializing upload...');
 
     try {
-      await uploadVideoFile(file, (pct) => setUploadProgress(pct));
+      const uploader = new ResumableUploader(file, {
+        onProgress: (pct) => {
+          setUploadProgress(pct);
+        },
+        onStatusChange: (st) => {
+          if (st === 'initializing') setUploadStatusText('Initializing session...');
+          else if (st === 'resuming') setUploadStatusText('Resuming upload...');
+          else if (st === 'uploading') setUploadStatusText(`Uploading ${uploadProgress}%...`);
+          else if (st === 'finalizing') setUploadStatusText('Finalizing video...');
+          else if (st === 'completed') setUploadStatusText('Upload completed!');
+        },
+      });
+      uploaderRef.current = uploader;
+
+      const result = await uploader.start();
+      setSourceName(result.file_name || file.name);
       setActiveStep(3);
     } catch (err) {
       console.error('File upload error:', err);
     } finally {
       setUploading(false);
       setUploadProgress(0);
+      setUploadStatusText('');
       e.target.value = '';
     }
   };
 
   // Connect RTSP Camera
   const handleConnectRTSP = async ({ cameraName, rtspUrl, username, password }) => {
+    cameraManagerRef.current?.stop();
+    setIsDeviceCameraActive(false);
     setSelectedSource('rtsp');
     setSourceName(cameraName || 'RTSP Camera');
     try {
@@ -176,9 +249,18 @@ export default function App() {
   };
 
   // Toggle Camera Facing Mode (Front vs Rear)
-  const handleToggleFacingMode = () => {
-    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
+  const handleToggleFacingMode = async () => {
+    const nextMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextMode);
+    if (isDeviceCameraActive && cameraManagerRef.current) {
+      try {
+        await cameraManagerRef.current.start(nextMode);
+      } catch (e) {
+        console.warn('Toggle camera facing mode error:', e);
+      }
+    }
   };
+
 
   // Toggle Play/Pause
   const handleTogglePlay = async () => {
@@ -266,6 +348,7 @@ export default function App() {
               onOpenRTSP={() => setShowRTSPModal(true)}
               uploading={uploading}
               uploadProgress={uploadProgress}
+              uploadStatusText={uploadStatusText}
             />
 
             {/* 2. Key Foot-Traffic Counters (IN / OUT / INSIDE / TRACKED) */}
@@ -284,6 +367,8 @@ export default function App() {
               isDeviceCameraActive={isDeviceCameraActive}
               onToggleFacingMode={handleToggleFacingMode}
               facingMode={facingMode}
+              cameraError={cameraError}
+              cameraLoading={cameraLoading}
               sourceName={sourceName}
             />
 

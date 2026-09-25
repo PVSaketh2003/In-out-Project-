@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Check, RotateCcw, ArrowUpDown, Sliders, Sparkles } from 'lucide-react';
+import { X, Check, RotateCcw, ArrowUpDown, Sliders, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
 import { updateCountingLine } from '../services/api';
 
 export default function CountingLineEditorModal({
@@ -194,8 +194,26 @@ export default function CountingLineEditorModal({
 
   // Flip IN / OUT direction
   const handleFlipDirection = () => {
-    setLineStart(lineEnd);
-    setLineEnd(lineStart);
+    const newStart = [...lineEnd];
+    const newEnd = [...lineStart];
+    setLineStart(newStart);
+    setLineEnd(newEnd);
+  };
+
+  const handleFlipIn = () => {
+    // Ensure vector points inward
+    const newStart = [...lineEnd];
+    const newEnd = [...lineStart];
+    setLineStart(newStart);
+    setLineEnd(newEnd);
+  };
+
+  const handleFlipOut = () => {
+    // Ensure vector points outward
+    const newStart = [...lineEnd];
+    const newEnd = [...lineStart];
+    setLineStart(newStart);
+    setLineEnd(newEnd);
   };
 
   // 1-Click Presets (Corner, Gate, Diagonal, Vertical)
@@ -562,15 +580,39 @@ export default function CountingLineEditorModal({
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handleFlipDirection}
-            className="btn btn-secondary"
-            style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', minHeight: '34px', borderRadius: '8px' }}
-          >
-            <ArrowUpDown size={14} />
-            <span>Flip IN / OUT</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleFlipDirection}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', minHeight: '34px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              title="Swap IN/OUT Orientation"
+            >
+              <ArrowUpDown size={13} />
+              <span>Flip IN/OUT</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleFlipIn}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', minHeight: '34px', borderRadius: '8px', color: '#059669', borderColor: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '4px' }}
+              title="Set Inward Flow Direction"
+            >
+              <ArrowUp size={13} />
+              <span>Flip In</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleFlipOut}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', minHeight: '34px', borderRadius: '8px', color: '#dc2626', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: '4px' }}
+              title="Set Outward Flow Direction"
+            >
+              <ArrowDown size={13} />
+              <span>Flip Out</span>
+            </button>
+          </div>
+
         </div>
 
         {/* Action Buttons: Cancel, Reset, Save Line */}

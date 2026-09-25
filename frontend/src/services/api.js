@@ -97,39 +97,18 @@ export async function controlVideo(action) {
   }
 }
 
-export function uploadVideoFile(file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
-    formData.append('video', file);
-    formData.append('file', file);
+import { ResumableUploader } from './resumableUploader';
 
-    if (xhr.upload && onProgress) {
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 100);
-          onProgress(pct);
-        }
-      };
-    }
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          resolve(data);
-        } catch (e) {
-          resolve({ status: 'ok' });
-        }
-      } else {
-        reject(new Error(`Upload failed with status HTTP ${xhr.status}`));
-      }
-    };
-
-    xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.open('POST', `${API_BASE}/video/upload`);
-    xhr.send(formData);
+export function uploadVideoFile(file, onProgress, options = {}) {
+  // Use high-performance Resumable Chunked Uploader
+  const uploader = new ResumableUploader(file, {
+    onProgress: (pct, details) => {
+      if (onProgress) onProgress(pct, details);
+    },
+    ...options,
   });
+
+  return uploader.start();
 }
 
 export async function fetchConfig() {
@@ -169,6 +148,21 @@ export async function updateCountingLine(start, end) {
     throw err;
   }
 }
+
+export async function flipCountingLine(action = 'flip') {
+  try {
+    const res = await fetch(`${API_BASE}/counting-line/flip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('flipCountingLine error:', err);
+    throw err;
+  }
+}
+
 
 export async function updatePerspective(points) {
   try {

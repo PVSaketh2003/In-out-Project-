@@ -8,6 +8,7 @@ export default function VideoSourceSelector({
   onOpenRTSP,
   uploading = false,
   uploadProgress = 0,
+  uploadStatusText = '',
 }) {
   const sources = [
     {
@@ -22,7 +23,9 @@ export default function VideoSourceSelector({
     },
     {
       id: 'file',
-      name: uploading ? `Uploading ${uploadProgress}%` : 'Upload File',
+      name: uploading
+        ? (uploadStatusText || `Uploading ${uploadProgress}%`)
+        : 'Upload File',
       icon: Upload,
       isUpload: true,
     },
@@ -33,6 +36,7 @@ export default function VideoSourceSelector({
       isRTSP: true,
     },
   ];
+
 
   return (
     <div

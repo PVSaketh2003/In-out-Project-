@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Camera, SwitchCamera, Play, Pause, Sliders, AlertCircle, RefreshCw, Loader2, Check, ArrowUpDown, Sparkles } from 'lucide-react';
-import { pushClientFrame, controlVideo, updateCountingLine } from '../services/api';
+import { Camera, SwitchCamera, Play, Pause, Sliders, AlertCircle, RefreshCw, Loader2, Check, ArrowUpDown, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
+import { pushClientFrame, controlVideo, updateCountingLine, flipCountingLine } from '../services/api';
 
 export default function VideoPlayer({
   telemetry,
@@ -9,11 +9,14 @@ export default function VideoPlayer({
   isDeviceCameraActive,
   onToggleFacingMode,
   facingMode,
+  cameraError = '',
+  cameraLoading = false,
   sourceName = 'Demo Pedestrian Stream',
 }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
+  const flipOpRef = useRef(0);
 
   const [streamError, setStreamError] = useState(false);
   const [streamLoading, setStreamLoading] = useState(true);
@@ -36,6 +39,7 @@ export default function VideoPlayer({
       if (telemetry.counting_line.end) setLineEnd(telemetry.counting_line.end);
     }
   }, [telemetry?.counting_line]);
+
 
   // Draw crisp single counting line on canvas overlay
   useEffect(() => {
@@ -232,17 +236,35 @@ export default function VideoPlayer({
     commitLineUpdate(newStart, newEnd);
   };
 
-  // Flip IN / OUT Direction
-  const handleFlipDirection = () => {
-    const newStart = lineEnd;
-    const newEnd = lineStart;
+  // Atomic, Race-Free Flip Operations (Flip Direction, Flip In, Flip Out)
+  const handleFlip = async (action = 'flip') => {
+    const currentOp = ++flipOpRef.current;
+    const newStart = [...lineEnd];
+    const newEnd = [...lineStart];
     setLineStart(newStart);
     setLineEnd(newEnd);
-    commitLineUpdate(newStart, newEnd);
+
+    try {
+      const res = await flipCountingLine(action);
+      if (flipOpRef.current === currentOp && res?.counting_line) {
+        setLineStart(res.counting_line.start);
+        setLineEnd(res.counting_line.end);
+        onLineUpdated?.(res.counting_line.start, res.counting_line.end);
+        setSaveSuccessNotice(true);
+        setTimeout(() => setSaveSuccessNotice(false), 2000);
+      }
+    } catch (err) {
+      console.error('Flip counting line error:', err);
+    }
   };
+
+  const handleFlipDirection = () => handleFlip('flip');
+  const handleFlipIn = () => handleFlip('flip_in');
+  const handleFlipOut = () => handleFlip('flip_out');
 
   // Handle Play/Pause
   const handleTogglePlay = async () => {
+
     const action = isPaused ? 'resume' : 'pause';
     try {
       await controlVideo(action);
@@ -500,16 +522,18 @@ export default function VideoPlayer({
               gap: '6px',
               boxShadow: '0 8px 24px rgba(15, 23, 42, 0.2)',
               zIndex: 40,
+              maxWidth: '92%',
+              overflowX: 'auto',
             }}
           >
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', marginRight: '4px' }}>
-              Drag Corners A/B:
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', marginRight: '4px', whiteSpace: 'nowrap' }}>
+              Drag Corners:
             </span>
             <button
               type="button"
               onClick={() => applyPreset('corner')}
               className="btn btn-secondary"
-              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px' }}
+              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px', whiteSpace: 'nowrap' }}
             >
               🌟 Corner
             </button>
@@ -517,7 +541,7 @@ export default function VideoPlayer({
               type="button"
               onClick={() => applyPreset('gate')}
               className="btn btn-secondary"
-              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px' }}
+              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px', whiteSpace: 'nowrap' }}
             >
               🚪 Gate
             </button>
@@ -525,16 +549,37 @@ export default function VideoPlayer({
               type="button"
               onClick={handleFlipDirection}
               className="btn btn-secondary"
-              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px' }}
-              title="Flip Direction"
+              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}
+              title="Flip IN/OUT Flow Direction"
             >
               <ArrowUpDown size={11} />
+              <span>Flip IN/OUT</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleFlipIn}
+              className="btn btn-secondary"
+              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px', color: '#059669', borderColor: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}
+              title="Set Inward Flow Direction"
+            >
+              <ArrowUp size={11} />
+              <span>Flip In</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleFlipOut}
+              className="btn btn-secondary"
+              style={{ padding: '2px 8px', fontSize: '11px', minHeight: '26px', borderRadius: '14px', color: '#dc2626', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}
+              title="Set Outward Flow Direction"
+            >
+              <ArrowDown size={11} />
+              <span>Flip Out</span>
             </button>
             <button
               type="button"
               onClick={() => setIsEditMode(false)}
               className="btn btn-primary"
-              style={{ padding: '2px 10px', fontSize: '11px', minHeight: '26px', borderRadius: '14px' }}
+              style={{ padding: '2px 10px', fontSize: '11px', minHeight: '26px', borderRadius: '14px', whiteSpace: 'nowrap' }}
             >
               <Check size={12} />
               <span>Done</span>
@@ -542,8 +587,36 @@ export default function VideoPlayer({
           </div>
         )}
 
+        {/* Camera Permission / Error Banner */}
+        {cameraError && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '12px',
+              left: '12px',
+              right: '12px',
+              backgroundColor: 'rgba(239, 68, 68, 0.95)',
+              color: '#ffffff',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              zIndex: 35,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <AlertCircle size={16} />
+              <span>{cameraError}</span>
+            </div>
+          </div>
+        )}
+
         {/* Loading Spinner */}
-        {streamLoading && (
+        {(streamLoading || cameraLoading) && (
           <div
             style={{
               position: 'absolute',
@@ -559,9 +632,12 @@ export default function VideoPlayer({
             }}
           >
             <Loader2 size={32} className="animate-spin" style={{ color: '#3b82f6' }} />
-            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Loading AI Stream...</span>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+              {cameraLoading ? 'Opening Device Camera...' : 'Loading AI Stream...'}
+            </span>
           </div>
         )}
+
 
         {/* Disconnection / Error Overlay */}
         {streamError && (
