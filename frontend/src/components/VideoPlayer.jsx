@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Camera, SwitchCamera, Play, Pause, Sliders, AlertCircle, RefreshCw, Loader2, Check, ArrowUpDown, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
 import { pushClientFrame, controlVideo, updateCountingLine, flipCountingLine } from '../services/api';
-import { WebGPURenderer } from '../services/webgpuRenderer';
 
 export default function VideoPlayer({
   telemetry,
@@ -78,15 +77,100 @@ export default function VideoPlayer({
     };
   }, []);
 
-  // Update renderer with telemetry and counting line
+  // Direct, High-Visibility Canvas Rendering of the Counting Line & Direction Vectors
   useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.setCountingLine(lineStart, lineEnd);
-      if (telemetry) {
-        rendererRef.current.updateTelemetry(telemetry);
-      }
-    }
-  }, [telemetry, lineStart, lineEnd]);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    if (!lineStart || !lineEnd) return;
+
+    const ax = lineStart[0] * w;
+    const ay = lineStart[1] * h;
+    const bx = lineEnd[0] * w;
+    const by = lineEnd[1] * h;
+
+    ctx.save();
+
+    // 1. Wide high-contrast white background casing
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+
+    // 2. Primary Vibrant Blue Counting Line
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+
+    // 3. Normal Vector Arrow in Center
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+
+    // Normal arrow shaft
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.lineTo(mx + nx * 32, my + ny * 32);
+    ctx.stroke();
+
+    // Arrowhead
+    const tipX = mx + nx * 32;
+    const tipY = my + ny * 32;
+    const angle = Math.atan2(ny, nx);
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - 10 * Math.cos(angle - Math.PI / 6), tipY - 10 * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(tipX - 10 * Math.cos(angle + Math.PI / 6), tipY - 10 * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+
+    // IN Side Pill (Green)
+    const inDist = 52;
+    const inX = mx + nx * inDist;
+    const inY = my + ny * inDist;
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.roundRect(inX - 28, inY - 11, 56, 22, 5);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('▲ IN', inX, inY);
+
+    // OUT Side Pill (Red)
+    const outDist = 52;
+    const outX = mx - nx * outDist;
+    const outY = my - ny * outDist;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.roundRect(outX - 32, outY - 11, 64, 22, 5);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('▼ OUT', outX, outY);
+
+    ctx.restore();
+  }, [lineStart, lineEnd]);
 
   // Convert screen pointer coordinates to normalized [0..1, 0..1]
   const getNormalizedPoint = useCallback((clientX, clientY) => {

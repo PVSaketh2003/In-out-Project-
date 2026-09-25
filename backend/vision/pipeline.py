@@ -204,6 +204,16 @@ class VisionPipeline:
                 if self.calibration_mode == "perspective":
                     rendered_frame = draw_homography_overlay(rendered_frame, self.perspective.norm_source_points)
 
+                # - Always draw virtual counting line with IN/OUT direction vectors
+                p1, p2 = self.analytics.get_absolute_line(w, h)
+                rendered_frame = draw_counting_line(
+                    rendered_frame,
+                    p1,
+                    p2,
+                    total_in=self.analytics.total_in,
+                    total_out=self.analytics.total_out,
+                )
+
                 # - Always draw tracked bounding boxes and trajectory trails with per-person status
                 rendered_frame = draw_hud_boxes(rendered_frame, active_tracks, draw_trails=True, analytics=self.analytics)
 
