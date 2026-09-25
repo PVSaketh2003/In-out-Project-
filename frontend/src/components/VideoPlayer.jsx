@@ -16,7 +16,6 @@ export default function VideoPlayer({
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
-  const rendererRef = useRef(null);
   const flipOpRef = useRef(0);
 
   const [streamError, setStreamError] = useState(false);
@@ -49,19 +48,6 @@ export default function VideoPlayer({
       }
     }
   }, [telemetry?.counting_line]);
-
-  // Initialize Hardware-Accelerated WebGPU / Canvas Renderer
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    rendererRef.current = new WebGPURenderer(canvas);
-    rendererRef.current.setCountingLine(lineStartRef.current, lineEndRef.current);
-
-    return () => {
-      rendererRef.current?.stop();
-    };
-  }, []);
 
   // Listen for stream reload events for instant playback on upload completion
   useEffect(() => {
