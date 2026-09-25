@@ -56,6 +56,7 @@ class VisionPipeline:
         self._stop_event = threading.Event()
         self._latest_frame_bytes: Optional[bytes] = None
         self._latest_telemetry: Dict[str, Any] = {}
+        self._frame_id: int = 0
         self._lock = threading.Lock()
 
         # Performance rolling metrics (30-frame window)
@@ -132,6 +133,11 @@ class VisionPipeline:
         with self._lock:
             return self._latest_frame_bytes
 
+    def get_latest_frame_with_id(self) -> Tuple[int, Optional[bytes]]:
+        """Returns the frame ID and most recent frame JPEG bytes."""
+        with self._lock:
+            return self._frame_id, self._latest_frame_bytes
+
     def get_latest_telemetry(self) -> Dict[str, Any]:
         """Returns the most recent analytics telemetry snapshot."""
         with self._lock:
@@ -198,9 +204,6 @@ class VisionPipeline:
                 if self.calibration_mode == "perspective":
                     rendered_frame = draw_homography_overlay(rendered_frame, self.perspective.norm_source_points)
 
-                # - Counting line is rendered exclusively on frontend canvas for 60fps interactive editing and zero duplicate lines
-                # p1, p2 = self.analytics.get_absolute_line(w, h)
-
                 # - Always draw tracked bounding boxes and trajectory trails with per-person status
                 rendered_frame = draw_hud_boxes(rendered_frame, active_tracks, draw_trails=True, analytics=self.analytics)
 
@@ -213,8 +216,8 @@ class VisionPipeline:
                     active_people=len(active_tracks),
                 )
 
-                # 8. Encode to JPEG for MJPEG stream
-                _, jpeg_buf = cv2.imencode(".jpg", rendered_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                # 8. Encode to JPEG for MJPEG stream with optimized quality (75% quality for ultra-low latency)
+                _, jpeg_buf = cv2.imencode(".jpg", rendered_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75, int(cv2.IMWRITE_JPEG_OPTIMIZE), 1])
                 frame_bytes = jpeg_buf.tobytes()
 
                 # 9. Latency & Performance Measurements
@@ -228,6 +231,7 @@ class VisionPipeline:
                 # 10. Assemble Real-Time Telemetry Payload
                 telemetry_payload = {
                     "timestamp": time.time(),
+                    "frame_id": self._frame_id + 1,
                     "fps": round(avg_fps, 1),
                     "detection_latency_ms": round(avg_det_ms, 1),
                     "processing_latency_ms": round(avg_proc_ms, 1),
@@ -267,6 +271,7 @@ class VisionPipeline:
                 }
 
                 with self._lock:
+                    self._frame_id += 1
                     self._latest_frame_bytes = frame_bytes
                     self._latest_telemetry = telemetry_payload
 

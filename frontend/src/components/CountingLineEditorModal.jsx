@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Check, RotateCcw, ArrowUpDown, Sliders, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
-import { updateCountingLine } from '../services/api';
+import { updateCountingLine, flipCountingLine } from '../services/api';
 
 export default function CountingLineEditorModal({
   isOpen,
@@ -9,22 +9,82 @@ export default function CountingLineEditorModal({
   initialEnd = [0.85, 0.48],
   onSaved,
 }) {
-  const [lineStart, setLineStart] = useState(initialStart);
-  const [lineEnd, setLineEnd] = useState(initialEnd);
+  const [lineStart, setLineStart] = useState(initialStart || [0.15, 0.72]);
+  const [lineEnd, setLineEnd] = useState(initialEnd || [0.85, 0.48]);
   const [saving, setSaving] = useState(false);
-  const [activePin, setActivePin] = useState(null); // 'A' | 'B' | 'line' | null
+  const [activePin, setActivePin] = useState(null); // 'A' | 'B' | null
 
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
-  const dragStartPosRef = useRef(null); // For dragging entire line
+  const activePinRef = useRef(null);
+  const lineStartRef = useRef(initialStart || [0.15, 0.72]);
+  const lineEndRef = useRef(initialEnd || [0.85, 0.48]);
 
   // Sync initial coordinates when modal opens
   useEffect(() => {
     if (isOpen) {
-      setLineStart(initialStart || [0.15, 0.72]);
-      setLineEnd(initialEnd || [0.85, 0.48]);
+      const s = initialStart || [0.15, 0.72];
+      const e = initialEnd || [0.85, 0.48];
+      setLineStart(s);
+      setLineEnd(e);
+      lineStartRef.current = s;
+      lineEndRef.current = e;
     }
   }, [isOpen, initialStart, initialEnd]);
+
+  // Helper to convert screen pointer position to normalized [0..1, 0..1]
+  const getNormalizedPoint = useCallback((clientX, clientY) => {
+    const container = containerRef.current;
+    if (!container) return { x: 0.5, y: 0.5 };
+    const rect = container.getBoundingClientRect();
+    const nx = Math.max(0.02, Math.min(0.98, (clientX - rect.left) / rect.width));
+    const ny = Math.max(0.02, Math.min(0.98, (clientY - rect.top) / rect.height));
+    return {
+      x: parseFloat(nx.toFixed(3)),
+      y: parseFloat(ny.toFixed(3)),
+    };
+  }, []);
+
+  // Window-level dragging engine ensuring zero dropped pointer events
+  const startDragging = useCallback((pin, clientX, clientY) => {
+    activePinRef.current = pin;
+    setActivePin(pin);
+
+    // Initial positioning update
+    const { x, y } = getNormalizedPoint(clientX, clientY);
+    if (pin === 'A') {
+      lineStartRef.current = [x, y];
+      setLineStart([x, y]);
+    } else if (pin === 'B') {
+      lineEndRef.current = [x, y];
+      setLineEnd([x, y]);
+    }
+
+    const onPointerMove = (e) => {
+      if (!activePinRef.current) return;
+      e.preventDefault();
+      const pt = getNormalizedPoint(e.clientX, e.clientY);
+      if (activePinRef.current === 'A') {
+        lineStartRef.current = [pt.x, pt.y];
+        setLineStart([pt.x, pt.y]);
+      } else if (activePinRef.current === 'B') {
+        lineEndRef.current = [pt.x, pt.y];
+        setLineEnd([pt.x, pt.y]);
+      }
+    };
+
+    const onPointerUp = () => {
+      activePinRef.current = null;
+      setActivePin(null);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }, [getNormalizedPoint]);
 
   // Redraw canvas with high-contrast line and direction indicators
   useEffect(() => {
@@ -121,128 +181,84 @@ export default function CountingLineEditorModal({
 
   if (!isOpen) return null;
 
-  // Helper to convert screen pointer position to normalized [0..1, 0..1]
-  const getNormalizedPoint = (clientX, clientY) => {
-    const container = containerRef.current;
-    if (!container) return { x: 0.5, y: 0.5 };
-    const rect = container.getBoundingClientRect();
-    const nx = Math.max(0.01, Math.min(0.99, (clientX - rect.left) / rect.width));
-    const ny = Math.max(0.01, Math.min(0.99, (clientY - rect.top) / rect.height));
-    return {
-      x: parseFloat(nx.toFixed(3)),
-      y: parseFloat(ny.toFixed(3)),
-    };
-  };
-
-  // Pin A drag handlers with pointer capture
-  const handlePinDown = (pin, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setActivePin(pin);
-    try {
-      e.target.setPointerCapture(e.pointerId);
-    } catch (_) {}
-  };
-
-  const handlePinMove = (pin, e) => {
-    if (activePin !== pin) return;
-    const { x, y } = getNormalizedPoint(e.clientX, e.clientY);
-    if (pin === 'A') {
-      setLineStart([x, y]);
-    } else if (pin === 'B') {
-      setLineEnd([x, y]);
-    }
-  };
-
-  const handlePinUp = (e) => {
-    try {
-      if (e.target.hasPointerCapture(e.pointerId)) {
-        e.target.releasePointerCapture(e.pointerId);
-      }
-    } catch (_) {}
-    setActivePin(null);
-  };
-
-  // Tap anywhere on the viewport to snap nearest corner
-  const handleViewportPointerDown = (e) => {
-    const { x, y } = getNormalizedPoint(e.clientX, e.clientY);
-    const distA = Math.hypot(x - lineStart[0], y - lineStart[1]);
-    const distB = Math.hypot(x - lineEnd[0], y - lineEnd[1]);
-
-    if (distA < distB) {
-      setLineStart([x, y]);
-      setActivePin('A');
-    } else {
-      setLineEnd([x, y]);
-      setActivePin('B');
-    }
-  };
-
-  const handleViewportPointerMove = (e) => {
-    if (!activePin) return;
-    const { x, y } = getNormalizedPoint(e.clientX, e.clientY);
-    if (activePin === 'A') {
-      setLineStart([x, y]);
-    } else if (activePin === 'B') {
-      setLineEnd([x, y]);
-    }
-  };
-
-  const handleViewportPointerUp = () => {
-    setActivePin(null);
-  };
-
   // Flip IN / OUT direction
-  const handleFlipDirection = () => {
+  const handleFlipDirection = async () => {
     const newStart = [...lineEnd];
     const newEnd = [...lineStart];
+    lineStartRef.current = newStart;
+    lineEndRef.current = newEnd;
     setLineStart(newStart);
     setLineEnd(newEnd);
+    try {
+      await flipCountingLine('flip');
+    } catch (_) {}
   };
 
-  const handleFlipIn = () => {
-    // Ensure vector points inward
-    const newStart = [...lineEnd];
-    const newEnd = [...lineStart];
-    setLineStart(newStart);
-    setLineEnd(newEnd);
+  const handleFlipIn = async () => {
+    // Normal vector ny = bx - ax
+    const dx = lineEnd[0] - lineStart[0];
+    const dy = lineEnd[1] - lineStart[1];
+    // In video coordinates: inward is pointing upward (ny = dx < 0 or towards top)
+    // If currently pointing outward, flip to inward
+    if (dx > 0) {
+      const newStart = [...lineEnd];
+      const newEnd = [...lineStart];
+      lineStartRef.current = newStart;
+      lineEndRef.current = newEnd;
+      setLineStart(newStart);
+      setLineEnd(newEnd);
+    }
+    try {
+      await flipCountingLine('flip_in');
+    } catch (_) {}
   };
 
-  const handleFlipOut = () => {
-    // Ensure vector points outward
-    const newStart = [...lineEnd];
-    const newEnd = [...lineStart];
-    setLineStart(newStart);
-    setLineEnd(newEnd);
+  const handleFlipOut = async () => {
+    const dx = lineEnd[0] - lineStart[0];
+    if (dx < 0) {
+      const newStart = [...lineEnd];
+      const newEnd = [...lineStart];
+      lineStartRef.current = newStart;
+      lineEndRef.current = newEnd;
+      setLineStart(newStart);
+      setLineEnd(newEnd);
+    }
+    try {
+      await flipCountingLine('flip_out');
+    } catch (_) {}
   };
 
   // 1-Click Presets (Corner, Gate, Diagonal, Vertical)
   const applyPreset = (type) => {
+    let s = lineStart;
+    let e = lineEnd;
     if (type === 'corner') {
-      // From top-left to bottom-right corner
-      setLineStart([0.06, 0.88]);
-      setLineEnd([0.94, 0.44]);
+      s = [0.06, 0.88];
+      e = [0.94, 0.44];
     } else if (type === 'gate') {
-      // Horizontal gate
-      setLineStart([0.05, 0.52]);
-      setLineEnd([0.95, 0.52]);
+      s = [0.05, 0.52];
+      e = [0.95, 0.52];
     } else if (type === 'diagonal') {
-      // Top-right to bottom-left
-      setLineStart([0.08, 0.86]);
-      setLineEnd([0.92, 0.18]);
+      s = [0.08, 0.86];
+      e = [0.92, 0.18];
     } else if (type === 'vertical') {
-      // Vertical turnstile
-      setLineStart([0.50, 0.08]);
-      setLineEnd([0.50, 0.92]);
+      s = [0.50, 0.08];
+      e = [0.50, 0.92];
     }
+    lineStartRef.current = s;
+    lineEndRef.current = e;
+    setLineStart(s);
+    setLineEnd(e);
   };
 
   // Save Line to backend API
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateCountingLine(lineStart, lineEnd);
-      onSaved?.(lineStart, lineEnd);
+      const s = lineStartRef.current;
+      const e = lineEndRef.current;
+      await updateCountingLine(s, e);
+      onSaved?.(s, e);
       onClose();
     } catch (err) {
       console.error('Error saving counting line:', err);
@@ -319,10 +335,17 @@ export default function CountingLineEditorModal({
         {/* Video Sandbox Viewport with Interactive Touch Pins */}
         <div
           ref={containerRef}
-          onPointerDown={handleViewportPointerDown}
-          onPointerMove={handleViewportPointerMove}
-          onPointerUp={handleViewportPointerUp}
-          onPointerCancel={handleViewportPointerUp}
+          onPointerDown={(e) => {
+            // Tap/click viewport to drag nearest handle
+            const { x, y } = getNormalizedPoint(e.clientX, e.clientY);
+            const distA = Math.hypot(x - lineStartRef.current[0], y - lineStartRef.current[1]);
+            const distB = Math.hypot(x - lineEndRef.current[0], y - lineEndRef.current[1]);
+            if (distA <= distB) {
+              startDragging('A', e.clientX, e.clientY);
+            } else {
+              startDragging('B', e.clientX, e.clientY);
+            }
+          }}
           style={{
             position: 'relative',
             width: '100%',
@@ -364,152 +387,160 @@ export default function CountingLineEditorModal({
             }}
           />
 
-          {/* ── DRAGGABLE HANDLE PIN A (Large 56px Touch Target) ── */}
+          {/* ── DRAGGABLE HANDLE PIN A (Large 60px Touch Target) ── */}
           <div
-            onPointerDown={(e) => handlePinDown('A', e)}
-            onPointerMove={(e) => handlePinMove('A', e)}
-            onPointerUp={handlePinUp}
-            onPointerCancel={handlePinUp}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              startDragging('A', e.clientX, e.clientY);
+            }}
+            title="Drag Handle A"
             style={{
               position: 'absolute',
               left: `${lineStart[0] * 100}%`,
               top: `${lineStart[1] * 100}%`,
               transform: 'translate(-50%, -50%)',
-              width: '56px',
-              height: '56px',
+              width: '60px',
+              height: '60px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: activePin === 'A' ? 'grabbing' : 'grab',
               touchAction: 'none',
-              zIndex: 30,
+              zIndex: 35,
             }}
           >
             {/* Outer pulsating ring */}
             <div
               style={{
-                width: '38px',
-                height: '38px',
+                width: '40px',
+                height: '40px',
                 borderRadius: '50%',
-                backgroundColor: activePin === 'A' ? 'rgba(37, 99, 235, 0.4)' : 'rgba(37, 99, 235, 0.22)',
+                backgroundColor: activePin === 'A' ? 'rgba(37, 99, 235, 0.45)' : 'rgba(37, 99, 235, 0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: activePin === 'A' ? '0 0 0 8px rgba(37, 99, 235, 0.25)' : '0 0 0 4px rgba(37, 99, 235, 0.15)',
+                boxShadow: activePin === 'A' ? '0 0 0 8px rgba(37, 99, 235, 0.3)' : '0 0 0 4px rgba(37, 99, 235, 0.18)',
                 transition: 'box-shadow 0.15s ease, transform 0.15s ease',
-                transform: activePin === 'A' ? 'scale(1.12)' : 'scale(1)',
+                transform: activePin === 'A' ? 'scale(1.15)' : 'scale(1)',
               }}
             >
-              {/* Inner solid badge */}
+              {/* Inner core pin badge */}
               <div
                 style={{
                   width: '26px',
                   height: '26px',
                   borderRadius: '50%',
                   backgroundColor: '#2563eb',
-                  border: '3px solid #ffffff',
+                  border: '2.5px solid #ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#ffffff',
                   fontWeight: 800,
                   fontSize: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                 }}
               >
                 A
               </div>
             </div>
 
-            {/* Coordinate Tooltip */}
+            {/* Live coordinate readout */}
             <div
               style={{
                 position: 'absolute',
-                bottom: '-20px',
-                backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                bottom: '-22px',
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
                 color: '#ffffff',
-                padding: '1px 6px',
+                padding: '2px 6px',
                 borderRadius: '4px',
                 fontSize: '10px',
+                fontWeight: 600,
                 fontFamily: 'monospace',
                 pointerEvents: 'none',
                 whiteSpace: 'nowrap',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
               }}
             >
               {Math.round(lineStart[0] * 100)}%, {Math.round(lineStart[1] * 100)}%
             </div>
           </div>
 
-          {/* ── DRAGGABLE HANDLE PIN B (Large 56px Touch Target) ── */}
+          {/* ── DRAGGABLE HANDLE PIN B (Large 60px Touch Target) ── */}
           <div
-            onPointerDown={(e) => handlePinDown('B', e)}
-            onPointerMove={(e) => handlePinMove('B', e)}
-            onPointerUp={handlePinUp}
-            onPointerCancel={handlePinUp}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              startDragging('B', e.clientX, e.clientY);
+            }}
+            title="Drag Handle B"
             style={{
               position: 'absolute',
               left: `${lineEnd[0] * 100}%`,
               top: `${lineEnd[1] * 100}%`,
               transform: 'translate(-50%, -50%)',
-              width: '56px',
-              height: '56px',
+              width: '60px',
+              height: '60px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: activePin === 'B' ? 'grabbing' : 'grab',
               touchAction: 'none',
-              zIndex: 30,
+              zIndex: 35,
             }}
           >
             {/* Outer pulsating ring */}
             <div
               style={{
-                width: '38px',
-                height: '38px',
+                width: '40px',
+                height: '40px',
                 borderRadius: '50%',
-                backgroundColor: activePin === 'B' ? 'rgba(37, 99, 235, 0.4)' : 'rgba(37, 99, 235, 0.22)',
+                backgroundColor: activePin === 'B' ? 'rgba(37, 99, 235, 0.45)' : 'rgba(37, 99, 235, 0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: activePin === 'B' ? '0 0 0 8px rgba(37, 99, 235, 0.25)' : '0 0 0 4px rgba(37, 99, 235, 0.15)',
+                boxShadow: activePin === 'B' ? '0 0 0 8px rgba(37, 99, 235, 0.3)' : '0 0 0 4px rgba(37, 99, 235, 0.18)',
                 transition: 'box-shadow 0.15s ease, transform 0.15s ease',
-                transform: activePin === 'B' ? 'scale(1.12)' : 'scale(1)',
+                transform: activePin === 'B' ? 'scale(1.15)' : 'scale(1)',
               }}
             >
-              {/* Inner solid badge */}
+              {/* Inner core pin badge */}
               <div
                 style={{
                   width: '26px',
                   height: '26px',
                   borderRadius: '50%',
                   backgroundColor: '#2563eb',
-                  border: '3px solid #ffffff',
+                  border: '2.5px solid #ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#ffffff',
                   fontWeight: 800,
                   fontSize: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                 }}
               >
                 B
               </div>
             </div>
 
-            {/* Coordinate Tooltip */}
+            {/* Live coordinate readout */}
             <div
               style={{
                 position: 'absolute',
-                bottom: '-20px',
-                backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                bottom: '-22px',
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
                 color: '#ffffff',
-                padding: '1px 6px',
+                padding: '2px 6px',
                 borderRadius: '4px',
                 fontSize: '10px',
+                fontWeight: 600,
                 fontFamily: 'monospace',
                 pointerEvents: 'none',
                 whiteSpace: 'nowrap',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
               }}
             >
               {Math.round(lineEnd[0] * 100)}%, {Math.round(lineEnd[1] * 100)}%
@@ -517,7 +548,7 @@ export default function CountingLineEditorModal({
           </div>
         </div>
 
-        {/* Live Coordinate Status Pill */}
+        {/* Current Coordinates Banner */}
         <div
           style={{
             display: 'flex',
@@ -526,31 +557,33 @@ export default function CountingLineEditorModal({
             backgroundColor: '#f8fafc',
             border: '1px solid #e2e8f0',
             borderRadius: '10px',
-            padding: '0.6rem 0.9rem',
+            padding: '0.65rem 0.9rem',
             fontSize: '0.82rem',
-            color: '#475569',
+            color: '#334155',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2563eb' }}></span>
-            <span>Point A: <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>[{lineStart[0]}, {lineStart[1]}]</strong></span>
-            <span style={{ color: '#cbd5e1' }}>➔</span>
-            <span>Point B: <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>[{lineEnd[0]}, {lineEnd[1]}]</strong></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'monospace' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2563eb' }} />
+            <span>Point A: <strong>[{lineStart[0]}, {lineStart[1]}]</strong></span>
+            <span style={{ color: '#94a3b8' }}>➔</span>
+            <span>Point B: <strong>[{lineEnd[0]}, {lineEnd[1]}]</strong></span>
           </div>
           <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
             💡 Tip: Touch or drag pins directly
           </span>
         </div>
 
-        {/* Presets & Direction Flip */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.6rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b' }}>Presets:</span>
+        {/* Quick Presets & Flow Direction Toggles */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginRight: '0.2rem' }}>
+              Presets:
+            </span>
             <button
               type="button"
               onClick={() => applyPreset('corner')}
               className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', minHeight: '34px', borderRadius: '8px' }}
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', borderRadius: '8px' }}
             >
               🌟 Corner Cut
             </button>
@@ -558,7 +591,7 @@ export default function CountingLineEditorModal({
               type="button"
               onClick={() => applyPreset('gate')}
               className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', minHeight: '34px', borderRadius: '8px' }}
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', borderRadius: '8px' }}
             >
               🚪 Entrance Gate
             </button>
@@ -566,7 +599,7 @@ export default function CountingLineEditorModal({
               type="button"
               onClick={() => applyPreset('diagonal')}
               className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', minHeight: '34px', borderRadius: '8px' }}
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', borderRadius: '8px' }}
             >
               📐 Diagonal
             </button>
@@ -574,19 +607,19 @@ export default function CountingLineEditorModal({
               type="button"
               onClick={() => applyPreset('vertical')}
               className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', minHeight: '34px', borderRadius: '8px' }}
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', borderRadius: '8px' }}
             >
-              ↕️ Vertical
+              🚹 Vertical
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={handleFlipDirection}
               className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', minHeight: '34px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              title="Swap IN/OUT Orientation"
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              title="Flip IN and OUT Flow Direction"
             >
               <ArrowUpDown size={13} />
               <span>Flip IN/OUT</span>
@@ -595,7 +628,7 @@ export default function CountingLineEditorModal({
               type="button"
               onClick={handleFlipIn}
               className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', minHeight: '34px', borderRadius: '8px', color: '#059669', borderColor: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', borderRadius: '8px', color: '#059669', borderColor: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
               title="Set Inward Flow Direction"
             >
               <ArrowUp size={13} />
@@ -605,48 +638,63 @@ export default function CountingLineEditorModal({
               type="button"
               onClick={handleFlipOut}
               className="btn btn-secondary"
-              style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', minHeight: '34px', borderRadius: '8px', color: '#dc2626', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', borderRadius: '8px', color: '#dc2626', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
               title="Set Outward Flow Direction"
             >
               <ArrowDown size={13} />
               <span>Flip Out</span>
             </button>
           </div>
-
         </div>
 
-        {/* Action Buttons: Cancel, Reset, Save Line */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+        {/* Modal Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '1rem', marginTop: '0.25rem' }}>
           <button
             type="button"
             onClick={() => {
-              setLineStart(initialStart);
-              setLineEnd(initialEnd);
+              const defS = [0.15, 0.72];
+              const defE = [0.85, 0.48];
+              lineStartRef.current = defS;
+              lineEndRef.current = defE;
+              setLineStart(defS);
+              setLineEnd(defE);
             }}
             className="btn btn-secondary"
-            style={{ flex: 1, minHeight: '44px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
           >
             <RotateCcw size={15} />
             <span>Reset</span>
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn btn-secondary"
-            style={{ flex: 1, minHeight: '44px' }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="btn btn-primary"
-            style={{ flex: 2, minHeight: '44px', fontWeight: 700, fontSize: '0.95rem' }}
-          >
-            <Check size={18} />
-            <span>{saving ? 'Saving...' : 'Save Counting Line'}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-secondary"
+              style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="btn btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                fontSize: '0.85rem',
+                padding: '0.5rem 1.4rem',
+                backgroundColor: '#2563eb',
+                color: '#ffffff',
+                fontWeight: 700,
+                borderRadius: '8px',
+              }}
+            >
+              <Check size={16} />
+              <span>{saving ? 'Saving...' : 'Save Counting Line'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

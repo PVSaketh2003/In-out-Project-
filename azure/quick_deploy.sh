@@ -59,12 +59,18 @@ $SSH "mkdir -p /tmp/backend_sync"
 scp $SSH_KEY_ARG -o StrictHostKeyChecking=no \
   "$PROJ/backend/api/auth_views.py" \
   "$PROJ/backend/api/download_views.py" \
+  "$PROJ/backend/api/upload_views.py" \
+  "$PROJ/backend/api/views.py" \
+  "$PROJ/backend/vision/pipeline.py" \
   "$PROJ/backend/api/urls.py" \
   "$PROJ/backend/config/settings.py" \
   "$REMOTE_USER@$REMOTE_HOST:/tmp/backend_sync/"
 
 $SSH "sudo docker cp /tmp/backend_sync/auth_views.py visioneye-app:/app/backend/api/auth_views.py && \
       sudo docker cp /tmp/backend_sync/download_views.py visioneye-app:/app/backend/api/download_views.py && \
+      sudo docker cp /tmp/backend_sync/upload_views.py visioneye-app:/app/backend/api/upload_views.py && \
+      sudo docker cp /tmp/backend_sync/views.py visioneye-app:/app/backend/api/views.py && \
+      sudo docker cp /tmp/backend_sync/pipeline.py visioneye-app:/app/backend/vision/pipeline.py && \
       sudo docker cp /tmp/backend_sync/urls.py visioneye-app:/app/backend/api/urls.py && \
       sudo docker cp /tmp/backend_sync/settings.py visioneye-app:/app/backend/config/settings.py && \
       sudo docker cp /opt/visioneye/downloads visioneye-app:/app/backend/downloads && \

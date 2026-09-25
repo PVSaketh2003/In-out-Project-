@@ -461,7 +461,7 @@ from django.http import StreamingHttpResponse, HttpResponse, JsonResponse, FileR
 
 async def video_feed_stream(request):
     """
-    High-performance async MJPEG video streaming view for Daphne ASGI.
+    High-performance, ultra-low-latency async MJPEG video streaming view for Daphne ASGI.
     GET /api/video/feed
     """
     pipeline = get_pipeline(auto_start=True)
@@ -469,16 +469,20 @@ async def video_feed_stream(request):
         pipeline.start(source_type=pipeline.video_source.source_type or "synthetic")
 
     async def frame_generator():
+        last_frame_id = -1
         while True:
-            frame_bytes = pipeline.get_latest_frame_jpeg()
-            if frame_bytes is not None:
+            frame_id, frame_bytes = pipeline.get_latest_frame_with_id()
+            if frame_bytes is not None and frame_id != last_frame_id:
+                last_frame_id = frame_id
                 yield (
                     b"--frame\r\n"
                     b"Content-Type: image/jpeg\r\n"
                     b"Content-Length: " + str(len(frame_bytes)).encode("utf-8") + b"\r\n\r\n"
                     + frame_bytes + b"\r\n"
                 )
-            await asyncio.sleep(0.033)  # ~30 fps cap
+                await asyncio.sleep(0.01)
+            else:
+                await asyncio.sleep(0.008)
 
     response = StreamingHttpResponse(
         frame_generator(),
